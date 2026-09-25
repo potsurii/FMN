@@ -1,0 +1,46 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --color-paper: #f7f3ea;
+  --color-paper-muted: #efe8db;
+  --color-ink: #2d2a26;
+  --color-ink-muted: #6f685f;
+  --color-line: #d9d0c1;
+  --color-stamp: #8b4a3a;
+  --color-accent: #3d5a54;
+  --radius-card: 12px;
+  --radius-paper: 16px;
+  --font-sans: "Noto Sans SC", "Inter", system-ui, sans-serif;
+  --font-stamp: "Inter", "Noto Sans SC", system-ui, sans-serif;
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background:
+    radial-gradient(circle at top left, rgba(139, 74, 58, 0.06), transparent 36%),
+    radial-gradient(circle at top right, rgba(61, 90, 84, 0.05), transparent 30%),
+    linear-gradient(180deg, #fbf8f1 0%, var(--color-paper) 48%, #f2ebe0 100%);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.font-stamp {
+  font-family: var(--font-stamp);
+}

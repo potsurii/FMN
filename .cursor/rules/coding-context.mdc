@@ -1,0 +1,59 @@
+---
+alwaysApply: true
+---
+---
+description: "Coding context and phase focus for Forget Me Not."
+alwaysApply: true
+---
+
+# Forget Me Not — Coding Context
+
+## Current Phase
+
+Current development focus:
+
+**Phase 2**
+
+Prioritize Phase 2 requirements and current implementation tasks.
+
+## Context Loading
+
+Use these as the primary coding references:
+
+1. `docs/product.md`
+2. `docs/design-system.md`
+3. `docs/component-library.md`
+
+For the current task, prioritize the sections relevant to Phase 2.
+
+Do NOT unnecessarily reproduce or reason over completed Phase 1
+requirements.
+
+Phase 1 code remains valid foundation.
+
+Read and modify Phase 1 code only when:
+
+- the current Phase 2 feature depends on it
+- an existing component must be extended
+- an existing flow must remain compatible
+- a shared data structure must be changed
+- a regression must be investigated
+
+Do not rewrite or refactor completed Phase 1 functionality unless required
+by the current Phase 2 task.
+
+## Coding Behavior
+
+Before coding:
+
+1. Identify the current Phase 2 requirement.
+2. Identify the existing code affected.
+3. Reuse existing architecture where appropriate.
+4. Make the smallest necessary change.
+5. Verify that existing behavior is preserved.
+
+Do not implement unrelated future features.
+
+Do not create speculative infrastructure.
+
+Do not perform broad refactoring without explicit approval.

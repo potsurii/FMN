@@ -1,0 +1,232 @@
+---
+description: "Non-negotiable component architecture and reuse rules for Forget Me Not."
+alwaysApply: false
+---
+
+# Forget Me Not — Component Library Rules
+
+## 1. Component Architecture
+
+Use this hierarchy:
+
+Foundation
+
+→ Composite
+
+→ Business Component
+
+→ Page Module
+
+→ Page
+
+Components should become more product-specific as they move downward.
+
+Do not skip levels without a clear reason.
+
+Do not place page-specific business behavior inside Foundation components.
+
+---
+
+## 2. Reuse Before Create
+
+Before creating a component:
+
+1. Check `docs/component-library.md`.
+2. Search the existing codebase.
+3. Reuse or compose an existing component when possible.
+4. Create a new component only when existing components cannot reasonably
+   support the requirement.
+
+Do not create duplicate components with different names for the same
+responsibility.
+
+---
+
+## 3. Component Responsibility
+
+Each component must have a clear responsibility.
+
+A component may:
+
+- own its presentation
+- expose meaningful configuration
+- manage state necessary for its responsibility
+
+A component must NOT:
+
+- contain unrelated business logic
+- contain page-level logic unnecessarily
+- directly control unrelated components
+- duplicate business rules
+- make product decisions
+
+---
+
+## 4. Separation of Concerns
+
+Keep these concerns appropriately separated:
+
+- Data
+- Business logic
+- Presentation
+
+Pages should compose components and coordinate page-level behavior.
+
+Business components may compose lower-level components.
+
+Foundation components should remain product-agnostic where practical.
+
+Components should not directly own data persistence or database operations
+unless explicitly required by the architecture.
+
+---
+
+## 5. Variants vs States
+
+Use:
+
+**Variant** → different purpose or visual type.
+
+**State** → current condition of the same component.
+
+Prefer one component with meaningful variants and states over multiple
+components representing the same responsibility.
+
+Do not create separate components for every variant/state combination.
+
+---
+
+## 6. Component Boundaries
+
+Do not over-componentize.
+
+Create a component when at least one is true:
+
+- it is reused
+- it has meaningful internal behavior
+- it represents a stable business concept
+- it improves page readability
+- it has meaningful states or variants
+
+Do not create components merely to split a few lines of markup.
+
+---
+
+## 7. Business Components
+
+Business components represent stable FMN product concepts.
+
+Examples include:
+
+- `TripCard`
+- `TripCover`
+- `ItemCard`
+- `ItemGrid`
+- `TodoCard`
+- `RecommendationFeedback`
+- `VisibilityControl`
+- `FollowButton`
+
+Business components may compose Foundation and Composite components.
+
+Do not make business components depend on unrelated pages.
+
+Do not introduce business components that are not required by the current
+product phase.
+
+---
+
+## 8. Foundation & Composite Components
+
+Foundation and Composite components provide reusable UI building blocks.
+
+Examples include:
+
+- `Button`
+- `Input`
+- `Select`
+- `Image`
+- `Icon`
+- `Divider`
+- `Modal`
+- `Toast`
+
+Keep lower-level components reusable.
+
+Do not place trip-specific, item-specific, social-specific, or other
+page-specific business rules inside generic components.
+
+---
+
+## 9. Page Composition
+
+Pages should primarily:
+
+- compose components
+- connect data
+- coordinate page-level state
+- handle page-level actions
+
+Avoid rebuilding existing component UI directly inside pages.
+
+Do not create page-specific duplicates of existing components.
+
+Page-level composition must follow `docs/component-library.md`.
+
+---
+
+## 10. Component Consistency
+
+Components representing similar concepts must remain consistent in:
+
+- naming
+- structure
+- variants
+- states
+- interaction patterns
+- visual language
+
+Follow:
+
+`docs/component-library.md`
+
+Do not invent a parallel component architecture.
+
+---
+
+## 11. Future Components
+
+Future components may be documented in the component library.
+
+Documentation does NOT authorize implementation.
+
+Do not implement future components before the corresponding feature enters
+the current development phase.
+
+---
+
+## 12. Change Discipline
+
+When modifying an existing component:
+
+- preserve valid existing behavior
+- check current usages
+- avoid breaking unrelated pages
+- prefer compatible changes
+- update dependent usages when a breaking change is required
+
+Do not rewrite a shared component merely to simplify one page.
+
+---
+
+## Final Principle
+
+**Reuse before creating.
+
+Compose before duplicating.
+
+Keep responsibilities clear.
+
+Do not let components make product decisions.
+
+Build only components required by the current phase.**

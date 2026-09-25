@@ -1,0 +1,230 @@
+---
+description: "Non-negotiable product boundaries and implementation rules for Forget Me Not."
+alwaysApply: true
+---
+
+# Forget Me Not — Product Constitution
+
+## 1. Product Boundary
+
+Forget Me Not (FMN) is a travel shopping record and sharing Web App.
+
+Core purpose:
+
+Record, organize, and share real shopping information from trips.
+
+Core data:
+
+商品 × 价格 × 购买地点 × 日期 × 图片
+
+FMN is NOT:
+
+- a travel diary
+- a photo album
+- an e-commerce platform
+- a generic social platform
+- a travel route / navigation platform
+- a Xiaohongshu-style content feed
+
+---
+
+## 2. Phase Boundary
+
+Current phase: **Phase 2 — Product Definition / UGC & Public Travel Shopping Database**
+
+Phase 1 functionality remains valid.
+
+Only implement requirements explicitly belonging to the current phase.
+
+Do NOT implement future-phase functionality early.
+
+---
+
+## 3. Non-Negotiable Constraints
+
+### Currency
+
+- Currency is user-selected.
+- A trip may contain multiple currencies.
+- No live exchange rates.
+- No automatic currency conversion.
+- No cross-currency total.
+
+### Category
+
+Store lowercase English slugs only:
+
+`beauty`, `food`, `fashion`, `jewelry`, `daily`, `electronics`, `other`
+
+Do not invent categories outside `docs/product.md`.
+
+### Location
+
+- Purchase location is user-entered text.
+- No maps, GPS, POI search, or geocoding.
+
+### Images
+
+- Trip: at most one main image.
+- Item: at most one core product image.
+- Do not turn FMN into a photo gallery.
+
+### Recommendation
+
+Use:
+
+- 推荐
+- 不推荐
+
+Do NOT introduce:
+
+- Like
+- Favorite
+- recommendation percentage
+- combined trust score
+- personalized recommendation feed
+
+Recommendation counts are independent numerical values.
+
+### Shopping Todo
+
+The relationship is:
+
+`购物代办 → 已购买 → 购物记录`
+
+Do not implement Todo as a Favorite/Bookmark system.
+
+Purchase conversion should preserve applicable existing Todo information.
+
+### Travel Status
+
+A trip is one object with these states:
+
+`即将出行 → 进行中 → 已结束`
+
+Do not create separate planned/completed trip objects.
+
+### Follow
+
+Follow is a long-term shopping-reference relationship.
+
+No in-app direct messaging.
+
+---
+
+## 4. Public / Private Boundary
+
+Trips and items support public/private visibility.
+
+Mandatory rule:
+
+- Public trip → item may be public or private.
+- Private trip → all items must be private.
+
+Never allow:
+
+**private trip + public item**
+
+When changing a public trip containing public items to private, the user must
+explicitly confirm making those items private.
+
+Changing a trip back to public does not automatically restore previous item
+visibility.
+
+Private content must never appear in public pages or public search results.
+
+---
+
+## 5. Explicitly Out of Scope
+
+Unless explicitly promoted into the current phase:
+
+- Maps / GPS / POI
+- Live currency conversion
+- E-commerce / payment
+- Price comparison
+- Generic Like / Favorite
+- Generic social feed
+- Direct messaging
+- AI recommendation
+- OCR / AI recognition
+- AI Agent / RAG
+- Creator / blogger system
+- Travel route planning
+- Advanced scrapbook editor
+- Complex permission system
+
+---
+
+## 6. Source of Truth
+
+Use:
+
+- `docs/product.md` — product requirements
+- `docs/design-system.md` — visual rules
+- `docs/component-library.md` — component rules
+
+Do not duplicate their detailed content here.
+
+Do not silently override documented requirements.
+
+If requirements conflict or a product-level decision is missing:
+
+**stop and ask before deciding.**
+
+---
+
+## 7. Implementation Boundary
+
+Before creating a new component:
+
+1. Check `docs/component-library.md`.
+2. Reuse an existing component when possible.
+3. Compose existing components before creating new abstractions.
+
+Do not introduce infrastructure, dependencies, services, or abstractions that
+are not required by the current phase.
+
+Do not place product decisions inside UI components.
+
+---
+
+## 8. Change Discipline
+
+When modifying existing code:
+
+- preserve valid existing behavior
+- make the smallest necessary change
+- avoid unrelated refactoring
+
+Never silently change:
+
+- product scope
+- user flow
+- data meaning
+- business rules
+- terminology
+- information architecture
+
+Implementation convenience is never a reason to change product behavior.
+
+---
+
+## 9. Phase Discipline
+
+Do not automatically begin the next phase.
+
+A phase must be explicitly accepted before the next phase is implemented.
+
+Future requirements may be documented, but documentation alone does not
+authorize implementation.
+
+---
+
+## Final Principle
+
+**Build what is required.
+
+Do not build what is merely possible.
+
+Do not make product decisions on the user's behalf.**

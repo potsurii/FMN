@@ -1,0 +1,286 @@
+---
+description: "Non-negotiable visual and interaction principles for Forget Me Not."
+alwaysApply: false
+---
+
+# Forget Me Not — Design System Rules
+
+## 1. Visual Direction
+
+FMN is:
+
+**Travel Archive × Travel Scrapbook**
+
+The interface combines:
+
+- Archive — clean, structured, organized, calm
+- Scrapbook — travel, memory, paper, postcard, stamp, editorial character
+
+Archive provides structure.
+
+Scrapbook provides personality.
+
+Decorative elements must never reduce usability or information clarity.
+
+---
+
+## 2. Product Personality
+
+The UI should feel:
+
+- calm
+- personal
+- travel-oriented
+- editorial
+- organized
+- slightly nostalgic
+
+Avoid:
+
+- generic SaaS dashboard aesthetics
+- e-commerce aesthetics
+- corporate visual language
+- social-media feed aesthetics
+- excessive decoration
+- excessive gradients
+- excessive shadows
+- excessive rounded cards
+- high-saturation colors
+
+Phase 2 public content must still feel like **FMN travel shopping archive**,
+not a generic social platform.
+
+---
+
+## 3. Information Hierarchy
+
+Clarity takes priority over decoration.
+
+For shopping records, prioritize:
+
+1. What was bought
+2. How much it cost
+3. Where it was bought
+4. When it was bought
+5. Which category it belongs to
+
+For public content, maintain the same shopping-information priority.
+
+Do not sacrifice information hierarchy for visual effects.
+
+---
+
+## 4. Image Rules
+
+Images are product information, not decoration.
+
+Use images according to their semantic role:
+
+- Trip image → represents the trip
+- Product image → represents the purchased item
+- Purchase-context image → supports purchase memory
+
+Do not use unrelated decorative images.
+
+Do not turn FMN into a photo gallery.
+
+Do not overload pages with images.
+
+---
+
+## 5. Scrapbook Rules
+
+Scrapbook elements are supporting visual language.
+
+Use:
+
+- stamps
+- paper
+- postcards
+- tags
+- subtle collage
+- editorial composition
+
+only when they improve the travel-memory experience.
+
+Do not make every component look like a scrapbook.
+
+Do not add rotation, layering, texture, or stamps without visual purpose.
+
+---
+
+## 6. Typography
+
+Typography must prioritize readability.
+
+Use:
+
+- modern sans-serif for primary Chinese content
+- clean sans-serif for English and data
+- serif only for appropriate decorative emphasis
+
+Maintain clear hierarchy between:
+
+- Display
+- Heading
+- Body
+- Data
+- Caption
+
+Do not use decorative typography for important functional information.
+
+---
+
+## 7. Color
+
+Prefer:
+
+- warm paper / off-white neutrals
+- dark neutral text
+- low-saturation travel colors
+- restrained terracotta
+- olive
+- sand
+- blue
+
+Avoid:
+
+- highly saturated colors
+- rainbow-like UI
+- excessive accent colors
+- decorative color without semantic purpose
+
+Category colors must remain restrained and secondary to content.
+
+---
+
+## 8. Layout
+
+Prefer:
+
+- generous whitespace
+- clear grouping
+- strong alignment
+- intentional asymmetry
+- editorial composition where appropriate
+
+Do not sacrifice usability for asymmetry.
+
+Do not turn ordinary shopping records into dense dashboard layouts.
+
+Public content should remain structured and information-oriented rather than
+becoming a social-media feed.
+
+---
+
+## 9. Components
+
+All components must belong to the same visual system.
+
+Do not introduce UI that looks unrelated to FMN.
+
+Buttons, inputs, cards, tags, stamps, images, data displays, public content,
+and social interactions must share the same visual language.
+
+Reuse the established component library before creating new visual patterns.
+
+Detailed component definitions belong in:
+
+`docs/component-library.md`
+
+---
+
+## 10. Interaction & Motion
+
+Motion should feel:
+
+- subtle
+- natural
+- calm
+- lightweight
+
+Prefer short transitions and gentle feedback.
+
+Avoid:
+
+- bounce-heavy animation
+- excessive motion
+- unnecessary parallax
+- distracting transitions
+- animation that delays basic actions
+
+Motion supports feedback and hierarchy, not decoration.
+
+---
+
+## 11. Responsive Design
+
+The design must work across:
+
+- desktop
+- tablet
+- mobile
+
+Responsive behavior must adapt:
+
+- layout
+- spacing
+- content density
+- navigation
+- interaction patterns
+
+Do not simply scale down the desktop layout.
+
+---
+
+## 12. Accessibility
+
+Maintain:
+
+- sufficient contrast
+- visible focus states
+- readable typography
+- usable touch targets
+- clear form errors
+
+Do not communicate important information through color alone.
+
+Meaningful images require appropriate alternative text.
+
+---
+
+## 13. Interaction Semantics
+
+Visual treatment must reflect the product meaning.
+
+Do not visually represent:
+
+- 推荐 / 不推荐 as generic social Likes
+- 购物代办 as Favorites / Bookmarks
+- Follow as messaging or friendship
+- public content as a social-media feed
+- purchase records as e-commerce products
+
+UI must preserve the semantic distinction defined by the product.
+
+---
+
+## 14. Design Priority
+
+When visual decisions conflict, use this priority:
+
+**Usability → Information hierarchy → Consistency → Product character → Decoration**
+
+Never sacrifice usability or information clarity for visual style.
+
+---
+
+## Final Principle
+
+**Make FMN feel like a travel archive with a human memory layer —
+
+not a generic SaaS dashboard,
+
+not a social-media platform,
+
+and not a decorative scrapbook.**
