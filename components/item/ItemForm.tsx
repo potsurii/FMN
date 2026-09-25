@@ -20,16 +20,19 @@ import {
 } from "@/lib/items/validation";
 import { createClient } from "@/lib/supabase/client";
 import { uploadUserImage } from "@/lib/storage/upload";
+import { convertTodoToItem } from "@/lib/todos/mutations";
+import type { ShoppingTodoWithDisplay } from "@/lib/todos/types";
 import type { Visibility as TripVisibility } from "@/lib/trips/types";
 
 type ItemFormProps = {
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "purchaseFromTodo";
   tripId: string;
   tripStartDate: string;
   tripEndDate: string;
   tripVisibility: TripVisibility;
   userId: string;
   item?: ItemWithDisplay;
+  todo?: ShoppingTodoWithDisplay;
 };
 
 const VISIBILITY_OPTIONS = [
@@ -45,8 +48,11 @@ export function ItemForm({
   tripVisibility,
   userId,
   item,
+  todo,
 }: ItemFormProps) {
   const router = useRouter();
+  const isFromTodo = mode === "purchaseFromTodo";
+
   const cancelHref =
     mode === "edit" && item
       ? `/trips/${tripId}/items/${item.id}`
@@ -57,25 +63,45 @@ export function ItemForm({
       : `/trips/${tripId}`;
 
   const tripIsPrivate = tripVisibility === "private";
-  const [name, setName] = useState(item?.name ?? "");
-  const [amount, setAmount] = useState(item ? String(item.price) : "");
-  const [currency, setCurrency] = useState(item?.currency ?? "THB");
-  const [location, setLocation] = useState(item?.location ?? "");
+
+  const initialName = item?.name ?? todo?.name ?? "";
+  const initialAmount = item
+    ? String(item.price)
+    : todo?.referencePrice !== null && todo?.referencePrice !== undefined
+      ? String(todo.referencePrice)
+      : "";
+  const initialCurrency =
+    item?.currency ?? todo?.referenceCurrency ?? "THB";
+  const initialLocation =
+    item?.location ?? todo?.referenceLocation ?? "";
+  const initialCategory = item?.category ?? todo?.category ?? "other";
+  const initialNote = item?.note ?? todo?.note ?? "";
+  const initialImageUrl = item?.imageUrl ?? todo?.imageUrl ?? null;
+  const initialImagePath = item?.imagePath ?? todo?.imagePath ?? null;
+
+  const [name, setName] = useState(initialName);
+  const [amount, setAmount] = useState(initialAmount);
+  const [currency, setCurrency] = useState(initialCurrency);
+  const [location, setLocation] = useState(initialLocation);
   const [purchaseDate, setPurchaseDate] = useState(
     item?.purchaseDate ??
       defaultPurchaseDateInTripRange(tripStartDate, tripEndDate),
   );
-  const [category, setCategory] = useState(item?.category ?? "other");
-  const [note, setNote] = useState(item?.note ?? "");
+  const [category, setCategory] = useState(initialCategory);
+  const [note, setNote] = useState(initialNote);
   const [visibility, setVisibility] = useState<Visibility>(
-    tripIsPrivate ? "private" : (item?.visibility ?? "private"),
+    tripIsPrivate
+      ? "private"
+      : isFromTodo
+        ? "private"
+        : (item?.visibility ?? "private"),
   );
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(
-    item?.imageUrl ?? null,
+    initialImageUrl,
   );
   const [existingImagePath, setExistingImagePath] = useState<string | null>(
-    item?.imagePath ?? null,
+    initialImagePath,
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -151,6 +177,12 @@ export function ItemForm({
 
       if (mode === "edit" && item) {
         await updateItem(supabase, { ...payload, itemId: item.id });
+      } else if (mode === "purchaseFromTodo" && todo) {
+        await convertTodoToItem(supabase, {
+          tripId,
+          todoId: todo.id,
+          item: payload,
+        });
       } else {
         await createItem(supabase, payload);
       }
@@ -165,6 +197,12 @@ export function ItemForm({
 
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-xl space-y-5">
+      {isFromTodo ? (
+        <p className="rounded-[var(--radius-paper)] border border-dashed border-[var(--color-line)] bg-[var(--color-paper-muted)] px-4 py-3 text-sm text-[var(--color-ink-muted)]">
+          已从购物代办预填信息。请确认并补充实际购买价格、地点与日期。
+        </p>
+      ) : null}
+
       <FormField label="商品名称" htmlFor="item-name" required error={errors.name}>
         <Input
           id="item-name"
@@ -176,7 +214,7 @@ export function ItemForm({
       </FormField>
 
       <FormField
-        label="价格与货币"
+        label={isFromTodo ? "实际价格与货币" : "价格与货币"}
         htmlFor="item-amount"
         required
         error={errors.amount || errors.currency}
@@ -193,7 +231,7 @@ export function ItemForm({
       </FormField>
 
       <FormField
-        label="购买地点"
+        label={isFromTodo ? "实际购买地点" : "购买地点"}
         htmlFor="item-location"
         required
         error={errors.location}
@@ -251,7 +289,9 @@ export function ItemForm({
         hint={
           tripIsPrivate
             ? "所属旅行为私密，商品只能设为私密"
-            : undefined
+            : isFromTodo
+              ? "从购物代办转换的商品默认私密，可按需修改"
+              : undefined
         }
       >
         <Select
@@ -268,7 +308,10 @@ export function ItemForm({
         />
       </FormField>
 
-      <FormField label="商品图片" hint="可选，最多 1 张">
+      <FormField
+        label={isFromTodo ? "实际商品图片" : "商品图片"}
+        hint="可选，最多 1 张"
+      >
         <ImageUploader
           variant="ProductImage"
           value={imageFile}
@@ -313,7 +356,11 @@ export function ItemForm({
           取消
         </Button>
         <Button type="submit" disabled={saving}>
-          {saving ? "保存中…" : "保存"}
+          {saving
+            ? "保存中…"
+            : isFromTodo
+              ? "确认已购买"
+              : "保存"}
         </Button>
       </div>
     </form>
