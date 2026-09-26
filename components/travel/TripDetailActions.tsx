@@ -39,23 +39,21 @@ export function TripDetailActions({
 
   return (
     <>
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <Link href={`/trips/${tripId}/edit`}>
-          <Button variant="secondary">编辑旅行</Button>
-        </Link>
-        <Button
-          type="button"
-          variant="ghost"
-          className="text-[var(--color-stamp)]"
-          onClick={() => {
-            setError(null);
-            setOpen(true);
-          }}
-        >
-          删除旅行
-        </Button>
-      </div>
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      <Link href={`/trips/${tripId}/edit`}>
+        <Button variant="secondary">编辑旅行</Button>
+      </Link>
+      <Button
+        type="button"
+        variant="ghost"
+        className="text-[var(--color-stamp)]"
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
+      >
+        删除旅行
+      </Button>
+      {error ? <p className="w-full text-sm text-red-600">{error}</p> : null}
 
       <ConfirmDialog
         open={open}

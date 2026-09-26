@@ -41,23 +41,21 @@ export function ItemDetailActions({
 
   return (
     <>
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <Link href={`/trips/${tripId}/items/${itemId}/edit`}>
-          <Button variant="secondary">编辑</Button>
-        </Link>
-        <Button
-          type="button"
-          variant="ghost"
-          className="text-[var(--color-stamp)]"
-          onClick={() => {
-            setError(null);
-            setOpen(true);
-          }}
-        >
-          删除
-        </Button>
-      </div>
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      <Link href={`/trips/${tripId}/items/${itemId}/edit`}>
+        <Button variant="secondary">编辑</Button>
+      </Link>
+      <Button
+        type="button"
+        variant="ghost"
+        className="text-[var(--color-stamp)]"
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
+      >
+        删除
+      </Button>
+      {error ? <p className="w-full text-sm text-red-600">{error}</p> : null}
 
       <ConfirmDialog
         open={open}

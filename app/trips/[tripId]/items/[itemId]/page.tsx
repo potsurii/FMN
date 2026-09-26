@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/foundation/Heading";
+import { ShareButton } from "@/components/foundation/ShareButton";
 import { Text } from "@/components/foundation/Text";
 import { CategoryTag } from "@/components/item/CategoryTag";
 import { ItemDetailActions } from "@/components/item/ItemDetailActions";
@@ -7,18 +8,38 @@ import { ItemImage } from "@/components/item/ItemImage";
 import { ItemMeta } from "@/components/item/ItemMeta";
 import { BackButton } from "@/components/navigation/BackButton";
 import { Header } from "@/components/navigation/Header";
+import { RecommendationFeedback } from "@/components/recommendation/RecommendationFeedback";
+import { ContentPublisher } from "@/components/user/ContentPublisher";
 import { requireUser } from "@/lib/auth/require-user";
+import { fetchProfileById } from "@/lib/follows";
 import { fetchItemById } from "@/lib/items/detail";
+import {
+  parseNavFrom,
+  resolveItemBack,
+} from "@/lib/navigation/context";
+import {
+  fetchMyRecommendation,
+  fetchRecommendationCounts,
+} from "@/lib/recommendations/queries";
+import { itemSharePath } from "@/lib/share/paths";
 import { fetchTripById } from "@/lib/trips/detail";
 
 export const dynamic = "force-dynamic";
 
 type ItemDetailPageProps = {
   params: Promise<{ tripId: string; itemId: string }>;
+  searchParams: Promise<{ from?: string; tripId?: string }>;
 };
 
-export default async function ItemDetailPage({ params }: ItemDetailPageProps) {
+export default async function ItemDetailPage({
+  params,
+  searchParams,
+}: ItemDetailPageProps) {
   const { tripId, itemId } = await params;
+  const { from: fromRaw } = await searchParams;
+  const from = parseNavFrom(fromRaw);
+  const back = resolveItemBack(from, tripId);
+
   const { supabase, user } = await requireUser();
   const [trip, item] = await Promise.all([
     fetchTripById(supabase, tripId),
@@ -30,12 +51,29 @@ export default async function ItemDetailPage({ params }: ItemDetailPageProps) {
   }
 
   const isOwner = trip.user_id === user.id;
+  // Discovery from P6: from=search (direct) or from=trip (via public trip).
+  const showPublisher = from === "search" || from === "trip";
+  const isPubliclyRecommendable =
+    item.visibility === "public" && trip.visibility === "public";
+  const canShare = isPubliclyRecommendable;
+
+  const [counts, myState, publisherProfile] = await Promise.all([
+    isPubliclyRecommendable
+      ? fetchRecommendationCounts(supabase, itemId)
+      : Promise.resolve({ recommendCount: 0, notRecommendCount: 0 }),
+    isPubliclyRecommendable && !isOwner
+      ? fetchMyRecommendation(supabase, itemId, user.id)
+      : Promise.resolve(null),
+    showPublisher
+      ? fetchProfileById(supabase, trip.user_id)
+      : Promise.resolve(null),
+  ]);
 
   return (
     <div className="min-h-screen">
       <Header email={user.email} />
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-6 md:py-10">
-        <BackButton href={`/trips/${tripId}`} label="返回旅行详情" />
+        <BackButton href={back.href} label={back.label} />
 
         <section className="overflow-hidden rounded-[var(--radius-paper)] border border-[var(--color-line)] bg-[var(--color-paper)] shadow-[0_8px_24px_rgba(45,42,38,0.05)]">
           <ItemImage
@@ -52,8 +90,15 @@ export default async function ItemDetailPage({ params }: ItemDetailPageProps) {
                 {item.name}
               </Heading>
               <Text className="text-sm text-[var(--color-ink-muted)]">
-                {trip.name} · {item.visibility === "public" ? "公开" : "私密"}
+                {trip.name}
               </Text>
+              {showPublisher && publisherProfile ? (
+                <ContentPublisher
+                  userId={publisherProfile.id}
+                  displayName={publisherProfile.displayName}
+                  className="mt-2"
+                />
+              ) : null}
             </div>
 
             <ItemMeta
@@ -62,6 +107,7 @@ export default async function ItemDetailPage({ params }: ItemDetailPageProps) {
               currency={item.currency}
               location={item.location}
               purchaseDate={item.purchaseDate}
+              visibility={isOwner ? item.visibility : undefined}
             />
 
             <CategoryTag slug={item.category} />
@@ -79,13 +125,38 @@ export default async function ItemDetailPage({ params }: ItemDetailPageProps) {
               )}
             </div>
 
-            {isOwner ? (
+            {isPubliclyRecommendable ? (
               <div className="border-t border-[var(--color-line)] pt-4">
-                <ItemDetailActions
-                  tripId={tripId}
-                  itemId={itemId}
-                  itemName={item.name}
-                />
+                {isOwner ? (
+                  <RecommendationFeedback
+                    variant="summary"
+                    itemId={itemId}
+                    initialCounts={counts}
+                  />
+                ) : (
+                  <RecommendationFeedback
+                    variant="interactive"
+                    itemId={itemId}
+                    userId={user.id}
+                    initialCounts={counts}
+                    initialMyState={myState}
+                  />
+                )}
+              </div>
+            ) : null}
+
+            {canShare || isOwner ? (
+              <div className="flex flex-col gap-3 border-t border-[var(--color-line)] pt-4 sm:flex-row sm:flex-wrap">
+                {canShare ? (
+                  <ShareButton path={itemSharePath(tripId, itemId)} />
+                ) : null}
+                {isOwner ? (
+                  <ItemDetailActions
+                    tripId={tripId}
+                    itemId={itemId}
+                    itemName={item.name}
+                  />
+                ) : null}
               </div>
             ) : null}
           </div>

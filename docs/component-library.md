@@ -775,6 +775,8 @@ SearchInput 负责输入和展示。
 
 搜索对象、搜索逻辑和结果处理由页面及业务层负责。
 
+实现位置：`components/search/SearchInput.tsx`
+
 ---
 
 ## 6.12 ShareButton
@@ -1272,6 +1274,25 @@ Navigation
 
 * Default
 * Scrolled
+
+### Structure（登录后）
+
+```text
+Header
+├── Brand → /
+├── Primary Nav
+│   ├── 我的旅行 → /          (Active on /)
+│   └── 搜索 → /search        (Active on /search)
+└── User Area
+    ├── email
+    └── 退出
+```
+
+### Active State
+
+当前一级栏目使用 `--color-stamp` 强调，非社交高亮条。
+
+未登录（如 Login / Register）可不显示 Primary Nav。
 
 ---
 
@@ -2356,6 +2377,8 @@ SearchResultCard 只负责展示。
 搜索逻辑由页面和业务层处理。
 
 不同搜索对象优先通过 Variant 表达，而不是创建多个重复 Card。
+
+实现位置：`components/search/SearchResultCard.tsx`
 
 ---
 

@@ -12,6 +12,9 @@ import type { TripWithStats } from "@/lib/trips/types";
 
 type TripCardProps = {
   trip: TripWithStats;
+  href?: string;
+  /** P1 archive shows visibility; P6 discovery hides it. Default true. */
+  showVisibility?: boolean;
   className?: string;
 };
 
@@ -26,13 +29,18 @@ function TripImagePlaceholder() {
   );
 }
 
-export function TripCard({ trip, className = "" }: TripCardProps) {
+export function TripCard({
+  trip,
+  href,
+  showVisibility = true,
+  className = "",
+}: TripCardProps) {
   const dateRange = formatTripDateRange(trip.startDate, trip.endDate);
   const stampDate = formatStampDate(trip.startDate, trip.endDate);
 
   return (
     <Link
-      href={`/trips/${trip.id}`}
+      href={href ?? `/trips/${trip.id}`}
       className={`group block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] ${className}`}
     >
       <article className="flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-paper)] shadow-[0_1px_0_rgba(45,42,38,0.04),0_8px_24px_rgba(45,42,38,0.04)] transition-[transform,box-shadow] duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_2px_0_rgba(45,42,38,0.05),0_14px_28px_rgba(45,42,38,0.08)]">
@@ -56,8 +64,12 @@ export function TripCard({ trip, className = "" }: TripCardProps) {
               {trip.name}
             </h3>
             <Text as="span" className="text-sm text-[var(--color-ink-muted)]">
-              {visibilityLabel(trip.visibility)}
-              {" · "}
+              {showVisibility ? (
+                <>
+                  {visibilityLabel(trip.visibility)}
+                  {" · "}
+                </>
+              ) : null}
               {travelStatusLabel(trip.travelStatus)}
             </Text>
             <Text as="span" className="text-sm text-[var(--color-ink-muted)]">

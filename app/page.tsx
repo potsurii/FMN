@@ -5,6 +5,7 @@ import { Text } from "@/components/foundation/Text";
 import { Header } from "@/components/navigation/Header";
 import { TripArchive } from "@/components/travel/TripArchive";
 import { requireUser } from "@/lib/auth/require-user";
+import { fetchFollowCounts, fetchProfileById } from "@/lib/follows";
 import { fetchTripsWithStats } from "@/lib/trips/queries";
 import type { TripWithStats } from "@/lib/trips/types";
 
@@ -14,9 +15,20 @@ export default async function MyTripsPage() {
   const { supabase, user } = await requireUser();
   let trips: TripWithStats[] = [];
   let errorMessage: string | null = null;
+  let followingCount = 0;
+  let followersCount = 0;
+  let displayName: string | null = null;
 
   try {
-    trips = await fetchTripsWithStats(supabase, user.id);
+    const [tripList, counts, profile] = await Promise.all([
+      fetchTripsWithStats(supabase, user.id),
+      fetchFollowCounts(supabase, user.id),
+      fetchProfileById(supabase, user.id),
+    ]);
+    trips = tripList;
+    followingCount = counts.followingCount;
+    followersCount = counts.followersCount;
+    displayName = profile?.displayName ?? null;
   } catch (error) {
     errorMessage =
       error instanceof Error ? error.message : "无法加载旅行数据";
@@ -44,6 +56,32 @@ export default async function MyTripsPage() {
             <Text className="text-[var(--color-ink-muted)]">
               像翻阅旅行档案一样，查看每一次旅行的购物记录。
             </Text>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--color-ink-muted)]">
+              <Link
+                href={`/users/${user.id}`}
+                className="transition-colors hover:text-[var(--color-ink)]"
+              >
+                {displayName?.trim() || "我的主页"}
+              </Link>
+              <Link
+                href="/following"
+                className="transition-colors hover:text-[var(--color-ink)]"
+              >
+                关注{" "}
+                <span className="font-semibold text-[var(--color-ink)]">
+                  {followingCount}
+                </span>
+              </Link>
+              <Link
+                href="/followers"
+                className="transition-colors hover:text-[var(--color-ink)]"
+              >
+                粉丝{" "}
+                <span className="font-semibold text-[var(--color-ink)]">
+                  {followersCount}
+                </span>
+              </Link>
+            </div>
           </div>
           {createAction}
         </section>

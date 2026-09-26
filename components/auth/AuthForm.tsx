@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/foundation/Button";
 import { Input } from "@/components/foundation/Input";
 import { FormField } from "@/components/form/FormField";
@@ -12,7 +12,30 @@ type AuthFormProps = {
   mode: "login" | "register";
 };
 
+function safeNextPath(raw: string | null): string {
+  if (!raw) return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
+
 export function AuthForm({ mode }: AuthFormProps) {
+  return (
+    <Suspense fallback={<AuthFormFields mode={mode} nextPath="/" />}>
+      <AuthFormWithNext mode={mode} />
+    </Suspense>
+  );
+}
+
+function AuthFormWithNext({ mode }: AuthFormProps) {
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get("next"));
+  return <AuthFormFields mode={mode} nextPath={nextPath} />;
+}
+
+function AuthFormFields({
+  mode,
+  nextPath,
+}: AuthFormProps & { nextPath: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +69,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         if (signInError) throw signInError;
       }
 
-      router.push("/");
+      router.push(nextPath);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "认证失败，请重试");

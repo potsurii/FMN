@@ -1,6 +1,6 @@
 # Forget Me Not — Design-System
 
-> 记录时像档案，浏览时像旅行册，收藏时像邮票，回忆时像手账。
+> 记录时像档案，浏览时像旅行册，收藏时像邮票 → 归档时像邮票
 
 ---
 
@@ -2440,12 +2440,11 @@ Card、Stamp、Tag、Paper 不应该为了装饰而存在。
 
 动效服务于：
 
-- 记录
-- 整理
-- 收藏
-- 回忆
-- 发现
-- 购物计划转换
+-记录
+-整理
+-回忆
+-发现
+-购物计划转换
 
 而不是炫技。
 
@@ -2528,6 +2527,17 @@ Search 页面必须保持：
 > Feed First + Content Consumption
 
 搜索下面可以有公开内容推荐，但不得自动发展为无限内容流。
+
+---
+
+## Rule 14b — Primary Navigation Active State
+
+登录后 Global Navigation（我的旅行 / 搜索）的 Active State：
+
+- 使用档案戳色：`--color-stamp`
+- 字重略加强；可用细下划线或 stamp 色文字
+- 不要使用社交媒体式粗底色条
+- 不要使用高饱和红色或新的视觉体系
 
 ---
 
