@@ -1,11 +1,11 @@
 ---
-description: "Non-negotiable product boundaries and implementation rules for Forget Me Not."
+description: "Non-negotiable project boundaries and implementation rules for Forget Me Not."
 alwaysApply: true
 ---
 
-# Forget Me Not — Product Constitution
+# Forget Me Not — Project Constitution
 
-## 1. Product Boundary
+## 1. Project Boundary
 
 Forget Me Not (FMN) is a travel shopping record and sharing Web App.
 
@@ -30,7 +30,7 @@ FMN is NOT:
 
 ## 2. Phase Boundary
 
-Current phase: **Phase 2 — Product Definition / UGC & Public Travel Shopping Database**
+Current phase: **Phase 2 — Project Definition / UGC & Public Travel Shopping Database**
 
 Phase 1 functionality remains valid.
 

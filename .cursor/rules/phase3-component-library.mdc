@@ -1,0 +1,475 @@
+---
+description: "Non-negotiable component architecture and reuse rules for Forget Me Not Phase 3."
+globs:
+  - "components/**/*.tsx"
+alwaysApply: false
+---
+
+# Forget Me Not — Phase 3 Component Library Rules
+
+## 1. Source of Truth
+
+For Phase 3 component work, use:
+
+`docs/phase3-component-library.md`
+
+Inherited component foundation:
+
+`docs/component-library.md`
+
+Visual rules:
+
+`docs/phase3-design-system.md`
+
+Product rules:
+
+`docs/phase3-product.md`
+
+Do not duplicate detailed component specifications here.
+
+---
+
+## 2. Component Architecture
+
+Use:
+
+```text
+Foundation
+↓
+Composite
+↓
+Business Component
+↓
+Page Module
+↓
+Page
+```
+
+Components become more product-specific as they move downward.
+
+Do not place page-level business logic in lower-level components.
+
+---
+
+## 3. Reuse Before Create
+
+Before creating a component:
+
+1. Check `docs/phase3-component-library.md`.
+2. Check `docs/component-library.md`.
+3. Search the existing codebase.
+4. Reuse or compose an existing component when possible.
+
+Preferred order:
+
+```text
+Reuse
+↓
+Compose
+↓
+Variant
+↓
+New Component
+```
+
+Do not create duplicate components with different names.
+
+---
+
+## 4. Phase 3 Component Scope
+
+Phase 3 may introduce components for:
+
+* Companion Surface
+* Conversation
+* Input
+* Processing
+* Results
+* Draft
+* Confirmation
+* Candidate Selection
+* Task Progress
+
+Use the Phase 3 Component Library for the exact component list and specifications.
+
+Documentation does not require every component to be implemented immediately.
+
+---
+
+## 5. Existing FMN Components
+
+Reuse established FMN components whenever they reasonably support the requirement.
+
+Examples:
+
+```text
+Button
+Input
+Modal
+ConfirmDialog
+Toast
+
+ItemCard
+TripCard
+TravelStamp
+Price
+Location
+CategoryTag
+
+SearchResultCard
+ShoppingTodoCard
+VisibilityBadge
+```
+
+Do not create parallel AI-specific components such as:
+
+```text
+AIButton
+AIInput
+AIItemCard
+AITripCard
+AIConfirmDialog
+```
+
+unless the new component has a genuinely different responsibility.
+
+---
+
+## 6. Component Responsibility & Boundaries
+
+Each component should have one clear, stable responsibility.
+
+Components may own:
+
+* presentation
+* component-level interaction
+* meaningful local state
+* meaningful variants
+
+Create a new component only when it has a stable responsibility, meaningful reuse / behavior / states, or represents a stable product concept.
+
+Do not create a component merely to split a few lines of markup.
+
+Components must not own:
+
+* Agent planning
+* Workflow routing
+* business-rule decisions
+* permission decisions
+* database persistence
+* unrelated page logic
+* product decisions
+
+---
+
+## 7. Companion Component Boundary
+
+Companion Components are presentation and interaction surfaces.
+
+They may display:
+
+* user messages
+* assistant responses
+* structured results
+* Drafts
+* confirmations
+* task progress
+
+They must not directly implement:
+
+* Agent Loop
+* Tool Calling
+* Workflow execution
+* formal business-data writes
+
+---
+
+## 8. Logic Separation
+
+Keep these concerns separate:
+
+```text
+Presentation
+Business Logic
+Workflow
+Data
+```
+
+Preferred flow:
+
+```text
+UI Component
+↓
+Page / Application Layer
+↓
+Workflow / Business Logic
+↓
+Tool / Data Operation
+↓
+FMN Data
+```
+
+Do not move business rules into UI components.
+
+Do not move UI concerns into Workflow definitions.
+
+---
+
+## 9. Variant vs State
+
+Use:
+
+> **Variant** for different stable purposes or presentation types.
+
+Use:
+
+> **State** for the component's current condition.
+
+Example:
+
+```text
+Variant:
+Global / Trip / Compact
+
+State:
+Default / Loading / Processing / Disabled
+```
+
+Do not create separate components for every Variant × State combination.
+
+---
+
+## 10. Public / Private & Business Rules
+
+Public / Private behavior is defined by Product Definition.
+
+Components should display or trigger the relevant state, but must not decide whether the operation is valid.
+
+Prefer:
+
+```text
+Existing Component
++
+Variant / State
+```
+
+rather than creating separate public/private component families.
+
+For example, prefer:
+
+```text
+TripCard
+ItemCard
+VisibilityBadge
+```
+
+rather than:
+
+```text
+PublicTripCard
+PrivateTripCard
+PublicItemCard
+PrivateItemCard
+```
+
+unless their responsibilities become genuinely different.
+
+---
+
+## 11. Draft / Confirmation Components
+
+Phase 3 Draft and Confirmation components must preserve:
+
+```text
+Draft
+↓
+Review
+↓
+Confirm
+↓
+Formal Write
+```
+
+Components may present and edit Drafts.
+
+They must not silently persist formal business data.
+
+---
+
+## 12. Result Components
+
+Prefer existing FMN business components for Companion results.
+
+Examples:
+
+```text
+Record Result
+→ existing Item / Record component
+
+Trip Result
+→ TripCard
+
+Search Result
+→ SearchResultCard
+
+Todo Result
+→ ShoppingTodoCard
+
+Statistics
+→ Stat / Table components
+```
+
+Do not create duplicate result-card systems without a genuine new responsibility.
+
+---
+
+## 13. Candidate Components
+
+When multiple Products, Trips, or other objects require selection:
+
+> reuse existing Card / Search components when practical.
+
+Create a dedicated Candidate component only when the selection behavior or presentation has a stable independent responsibility.
+
+---
+
+## 14. Page Composition
+
+Pages should primarily:
+
+* compose existing components
+* connect data
+* coordinate page-level state
+* coordinate page-level actions
+
+Do not rebuild shared UI directly inside pages.
+
+---
+
+## 15. Naming
+
+Use clear PascalCase names that describe responsibility.
+
+Prefer:
+
+```text
+CompanionSurface
+AssistantMessage
+RecordDraft
+TodoDraft
+ConfirmationCard
+TaskProgress
+CandidateSelector
+```
+
+Avoid vague, temporary, page-specific, country-specific, or visual-style-specific names such as:
+
+```text
+Box
+Block
+Panel1
+ComponentA
+ThailandTripCard
+PinkProductCard
+```
+
+Avoid creating separate names for what should be Variants or States.
+
+---
+
+## 16. State Coverage
+
+Define only states that are genuinely required.
+
+Common Phase 3 states include:
+
+```text
+Default
+Hover
+Pressed
+Focus
+Loading
+Processing
+Waiting
+Disabled
+Error
+Selected
+Completed
+Cancelled
+```
+
+Do not add states merely for completeness.
+
+---
+
+## 17. Future Components
+
+Future components may be documented in:
+
+`docs/phase3-component-library.md`
+
+but:
+
+> **Documentation does not authorize implementation.**
+
+Only implement components required by the current Phase 3 task.
+
+---
+
+## 18. Change Discipline
+
+When modifying a shared component:
+
+* inspect current usages first
+* preserve valid existing behavior
+* prefer compatible changes
+* avoid unrelated refactoring
+* update affected usages when necessary
+
+Do not rewrite a shared component merely to simplify one page.
+
+---
+
+## 19. Product / Design / Component Boundary
+
+Respect:
+
+```text
+phase3-product.md
+        ↓
+phase3-design-system.md
+        ↓
+phase3-component-library.md
+```
+
+Product defines:
+
+> what is required.
+
+Design defines:
+
+> how it should look and behave visually.
+
+Component Library defines:
+
+> what reusable components express that design.
+
+Do not use component convenience to change product behavior.
+
+If component design requires a new product behavior:
+
+> stop and resolve the product decision first.
+
+---
+
+## Final Principle
+
+> **Reuse before creating.**
+
+> **Compose before duplicating.**
+
+> **Variant before creating a new component.**
+
+> **Keep Product, Business Logic, Workflow, and Presentation separate.**
+
+> **Build only the components required by the current Phase 3 task.**

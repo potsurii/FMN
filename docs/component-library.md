@@ -1,10 +1,3 @@
-可以。下面这版我直接按你刚才确认的方向，把现有 **Phase 1 Component Library v1.0** 迭代成 **Phase 2 Component Library v2.0**。
-
-我会保留原来的整体架构和大部分章节，不为了“升级”而重构整个文档；同时把 Phase 2 已经确定的 **搜索、推荐/不推荐、关注、购物代办、购买转换、公开/私密、用户主页、分享、认证** 纳入组件体系。
-
-你可以直接用下面内容覆盖 `docs/component-library.md`。
-
-````md
 # Forget Me Not — Component-Library
 
 > Reusable components for the Forget Me Not Web App.

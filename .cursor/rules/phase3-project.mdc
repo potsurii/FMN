@@ -1,0 +1,308 @@
+---
+description: "Non-negotiable project boundaries and coding rules for Forget Me Not Phase 3."
+alwaysApply: true
+---
+
+# Forget Me Not — Phase 3 Project Constitution
+
+## 1. Current Phase
+
+**Phase 3 — FMN Companion**
+
+Phase 1 / Phase 2 are the existing product foundation.
+
+Capabilities:
+
+* F3-01 Smart Shopping Record Input
+* F3-02 Historical Shopping Search
+* F3-03 Personal Shopping Data Organization
+* F3-04 Smart Shopping Todo Planning
+* F3-05 Cross-Function Task Orchestration
+
+F3-06 Travel Lifecycle Automation is removed.
+
+Do not implement future-phase features early.
+
+---
+
+## 2. Primary Source of Truth
+
+Use the relevant Phase 3 docs first:
+
+* `docs/phase3-product.md`
+* `docs/phase3-intelligence-architecture.md`
+* `docs/phase3-design-system.md`
+* `docs/phase3-component-library.md`
+* `docs/phase3-decisions.md`
+
+Inherited foundation:
+
+* `docs/product.md`
+* `docs/design-system.md`
+* `docs/component-library.md`
+
+Do not duplicate detailed requirements in MDC.
+
+If a product-level requirement is missing or conflicting:
+
+**stop and ask before deciding.**
+
+---
+
+## 3. Product Boundary
+
+FMN remains a:
+
+> Travel Shopping Record & Sharing Web App.
+
+Do not turn FMN into:
+
+* a generic AI assistant
+* an e-commerce platform
+* a generic social platform
+* a travel diary
+* a photo gallery
+* a travel navigation product
+
+Companion is an intelligent interaction layer of FMN, not a separate product.
+
+---
+
+## 4. AI Boundary
+
+Companion may:
+
+* understand natural-language requests
+* select existing Workflows
+* orchestrate multiple Workflows
+* ask for missing information
+* pause and resume tasks
+* help form Drafts
+* return structured results
+
+AI must not:
+
+* invent facts
+* bypass Workflow rules
+* bypass permissions
+* silently resolve important ambiguity
+* write formal business data outside the required Workflow / confirmation flow
+* add unsupported product capabilities
+* treat implicit acknowledgements as Confirm
+
+Detailed AI architecture:
+
+`docs/phase3-intelligence-architecture.md`
+
+---
+
+## 5. Data Integrity
+
+Never guess or fabricate:
+
+* Product
+* Price
+* Currency
+* Purchase Location
+* Trip
+* Quantity
+* Purchase Date
+* Historical Data
+
+When required information is missing:
+
+> ask the user.
+
+Do not replace uncertainty with assumptions.
+
+Todo field names and semantics:
+
+> See `docs/phase3-product.md` and `docs/phase3-decisions.md`.
+
+Component implementation boundaries:
+
+> See `phase3-component-library.mdc`.
+
+---
+
+## 6. Inherited Global Rules
+
+Inherit Phase 1/2 global rules:
+
+> multi-currency independent (no live FX, no cross-currency comparison);
+> Purchase Location is text-based (no Maps / GPS / POI / Geocoding);
+> Public / Private rules remain valid.
+
+If `docs/phase3-product.md` explicitly changes an inherited rule:
+
+> `phase3-product.md` takes precedence.
+
+---
+
+## 7. Formal Write Safety
+
+```text
+Input → Draft → Review → Confirm → Formal Write
+```
+
+Do not implement:
+
+```text
+Input → AI → Direct Formal Write
+```
+
+For batch writes:
+
+> do not partially write incomplete formal data.
+
+Formal writes must respect the Phase 3 transaction boundary.
+
+Detailed implementation rules:
+
+> See `docs/phase3-intelligence-architecture.md`.
+
+Explicit Confirm semantics:
+
+> See `phase3-component-library.mdc`.
+
+---
+
+## 8. Workflow Integrity
+
+Prefer:
+
+```text
+Agent → Workflow → Tool / Data Operation
+```
+
+Do not duplicate business logic in:
+
+* UI components
+* pages
+* Agent prompts
+* ad-hoc helper logic
+
+Do not move UI concerns into Workflow definitions.
+
+F3-05 must reuse F3-01 to F3-04.
+
+---
+
+## 9. Minimum Necessary Implementation
+
+Build only what is required for the current Phase 3 task.
+
+Do not add:
+
+* speculative infrastructure
+* unsupported dependencies
+* future-phase features
+* external services without product approval
+* duplicate business systems
+* unrelated refactors
+
+Implementation convenience is not a reason to expand scope.
+
+---
+
+## 10. Component Reuse
+
+Follow:
+
+* `phase3-component-library.mdc`
+* `docs/phase3-component-library.md`
+
+Hard rule:
+
+> **Reuse or compose existing components before creating a new one.**
+
+Do not create parallel AI-specific components.
+
+---
+
+## 11. Design Consistency
+
+Phase 3 UI must follow:
+
+* `docs/phase3-design-system.md`
+* `docs/design-system.md`
+* `phase3-design-system.mdc`
+
+Do not create a separate AI visual language.
+
+Companion must not look like:
+
+* a generic chatbot
+* a messaging app
+* an AI dashboard
+* an e-commerce assistant
+
+---
+
+## 12. Change Discipline
+
+When modifying existing code:
+
+* preserve valid existing behavior
+* make the smallest necessary change
+* inspect affected usages
+* avoid unrelated refactoring
+* preserve existing terminology and data meaning
+
+Never silently change:
+
+* product scope
+* user flow
+* business rules
+* data meaning
+* information architecture
+* established terminology
+
+---
+
+## 13. Phase Discipline
+
+Do not automatically begin Phase 4.
+
+Phase 3 must be explicitly accepted before the next phase is implemented.
+
+Documentation does not authorize implementation.
+
+---
+
+## 14. Coding Context
+
+Before coding:
+
+1. Identify the exact Phase 3 requirement.
+2. Read the relevant Phase 3 docs and `docs/phase3-decisions.md`.
+3. Inspect the existing implementation.
+4. Check reusable components.
+5. Use Plan mode for non-trivial changes.
+6. Implement the smallest valid solution.
+7. Verify existing behavior remains intact.
+
+### Reading Discipline
+
+When reading Phase 3 docs:
+
+* Prefer the relevant sections.
+* Do not load entire documents unless explicitly required.
+* Read `docs/phase3-decisions.md` entries relevant to the current task.
+
+Do not unnecessarily rewrite completed Phase 1 / Phase 2 functionality.
+
+Modify existing code only when Phase 3 requires it.
+
+---
+
+## Final Principle
+
+> **Build what Phase 3 requires.**
+
+> **Use the existing FMN product as the foundation.**
+
+> **Let AI assist, Workflow execute, and the user confirm formal writes.**
+
+> **Do not let implementation convenience redefine the product.**
+

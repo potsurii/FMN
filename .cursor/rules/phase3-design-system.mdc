@@ -1,0 +1,234 @@
+---
+description: "Non-negotiable visual and interaction boundaries for Forget Me Not Phase 3."
+globs:
+  - "app/**/*.tsx"
+  - "components/**/*.tsx"
+  - "app/**/*.css"
+  - "components/**/*.css"
+alwaysApply: false
+---
+
+# Forget Me Not — Phase 3 Design System Rules
+
+## 1. Source of Truth
+
+Visual rules:
+
+`docs/phase3-design-system.md`
+
+Inherited foundation:
+
+`docs/design-system.md`
+
+Locked decisions:
+
+`docs/phase3-decisions.md`
+
+Do not duplicate detailed specifications here.
+
+---
+
+## 2. Core Visual Direction
+
+FMN remains:
+
+> **Travel Archive × Travel Scrapbook**
+
+Phase 3 extends this as:
+
+> **Travel Archive × Intelligent Assistant**
+
+Companion must feel native to FMN, not like a chatbot, messaging app, AI dashboard, e-commerce assistant, or separate AI product.
+
+---
+
+## 3. Hard Rules
+
+### Rule 1 — Companion Is an Operation Layer
+
+Companion 是 FMN 的智能操作层。
+
+AI 是操作层，不是视觉主角。
+
+### Rule 2 — Do Not Become a Chat App
+
+不要把 FMN 变成 Chat App。
+
+不引入：
+
+* AI Brand Identity
+* AI Color Palette
+* AI Robot Avatar
+* Glowing AI Orbs
+* Large AI Logo
+* 3D Avatar
+* `/companion` 独立路由视觉
+
+### Rule 3 — Structured Over Conversational
+
+结构化信息优先于长文字。
+
+当信息适合结构化时，优先复用 FMN 已有组件：
+
+* Record → Item / Record 组件
+* Trip → TripCard
+* Search → SearchResult 组件
+* Statistics → Stat / Table
+* Todo → ShoppingTodo 组件
+
+不建立平行 AI Card 系统。
+
+### Rule 4 — Information Hierarchy
+
+For shopping information:
+
+> Product → Price → Location → Date → Category
+
+不得让 AI 文本、任务状态或装饰压过购物信息。
+
+### Rule 5 — Draft Is Not Formal Data
+
+Draft 必须与正式数据视觉区分。
+
+Draft 不是 Error。
+
+Draft 视觉上不得暗示"已写入"。
+
+### Rule 6 — Confirm Must Be Explicit
+
+Confirm 必须由明确的 Confirm Action 触发。
+
+Valid：
+
+* 明确的 UI Confirm Action
+* 被识别为 explicit confirmation intent 的自然语言指令
+
+NOT Confirm：
+
+* 被动浏览
+* 滚动
+* 关闭 Companion
+* "看起来不错" / "好的" / "嗯" / "继续"
+
+### Rule 7 — Companion Surface Is In-Page
+
+Companion Surface 为页面内展开，不换路由。
+
+支持：
+
+* Compact — Side Drawer
+* Expanded — Page-in-Page Full Screen
+
+不提供左侧历史对话栏。
+
+### Rule 8 — Global Entry vs Trip Entry Context
+
+Current Trip 表达 Context，不表达权限限制。
+
+Global Entry 无 Trip 时：
+
+* Draft 中 Trip 显示为"未指定"
+* Confirm 在 Trip 未补齐前不可用
+* Trip 选择必须由用户明确完成
+* 不得静默选择或替用户确定 Trip
+
+### Rule 9 — Processing Is User-Facing Only
+
+Processing 只显示用户有意义的信息。
+
+不显示：
+
+* Tool Name
+* Function Name
+* Prompt
+* Chain of Thought
+* Internal Reasoning
+
+### Rule 10 — reference_location vs purchase_location
+
+`reference_location`：
+
+> 计划购买地点（Target Purchase Location）
+
+`purchase_location`：
+
+> 实际购买地点（Actual Purchase Location）
+
+视觉上必须清晰区分。
+
+不得引入第二个独立的 Target Purchase Location 字段。
+
+### Rule 11 — Legacy Todo Is Not an Error
+
+Legacy Todo 不得因未填 Required Fields 被视觉标记为错误。
+
+Legacy Todo 仍可：
+
+* View
+* Delete
+* Convert
+
+转换时按 Phase 3 Conversion Rules 处理。
+
+不得把 Legacy Todo 的历史缺失字段显示为错误状态。
+
+### Rule 12 — Quantity Is Not an E-commerce Control
+
+Quantity 在 ItemCard / TodoCard 中显示为轻量后缀（例如 `×3`）。
+
+不得做成电商数量控件。
+
+不得使用 "+/-" 数字调整器视觉。
+
+### Rule 13 — Record Count ≠ Quantity
+
+F3-03 聚合中：
+
+```text
+Record Count    12
+Quantity        18
+```
+
+两个数字必须视觉上独立。
+
+不得合并为单一数字。
+
+### Rule 14 — Receipt Date ≠ Purchase Date
+
+`Receipt Date` 与 `Purchase Date` 是两个独立字段。
+
+当二者不同时，必须都显示。
+
+不得视觉暗示二者必须一致。
+
+不得使用警告色 / 错误色。
+
+---
+
+## 4. Design Conflict Rule
+
+Product behavior comes first.
+
+```text
+Product Definition
+↓
+Design System
+↓
+Component Library
+```
+
+Design must not change product rules for visual convenience.
+
+If a visual decision requires a new product behavior:
+
+> stop and resolve the product decision first.
+
+---
+
+## 5. Final Principle
+
+> **Make the Companion feel like FMN becoming easier to operate, not FMN becoming an AI application.**
+
+> **Preserve Travel Archive × Travel Scrapbook.**
+
+> **AI should support FMN's information and workflows, never overpower them.**
