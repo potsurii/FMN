@@ -1,3 +1,4 @@
+import { normalizeQuantity } from "@/lib/quantity";
 import type { ItemRecord, ItemWithDisplay } from "./types";
 
 function toNumber(value: number | string): number {
@@ -22,5 +23,6 @@ export function mapItemRecord(
     imageUrl,
     note: row.note,
     visibility: row.visibility,
+    quantity: normalizeQuantity(row.quantity),
   };
 }

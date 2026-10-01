@@ -2,10 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CategorySlug } from "@/lib/category";
 import { createItem, deleteItem, type CreateItemInput } from "@/lib/items/mutations";
 import type { ItemWithDisplay } from "@/lib/items/types";
+import { DEFAULT_QUANTITY, parseQuantity } from "@/lib/quantity";
+import { createSignedImageUrl } from "@/lib/storage/upload";
 import { mapTodoRow } from "./map";
 import { TODO_SELECT } from "./queries";
 import type { ShoppingTodoRow, ShoppingTodoWithDisplay } from "./types";
-import { createSignedImageUrl } from "@/lib/storage/upload";
 
 export type CreateTodoInput = {
   tripId: string;
@@ -14,13 +15,23 @@ export type CreateTodoInput = {
   category?: CategorySlug | null;
   referencePrice?: number | null;
   referenceCurrency?: string | null;
+  /** Target / planned purchase location. */
   referenceLocation?: string | null;
   note?: string | null;
+  quantity?: number;
 };
 
 export type UpdateTodoInput = CreateTodoInput & {
   todoId: string;
 };
+
+function resolveQuantity(value: number | undefined): number {
+  const parsed = parseQuantity(value ?? DEFAULT_QUANTITY);
+  if (parsed === null) {
+    throw new Error("数量必须为大于等于 1 的整数");
+  }
+  return parsed;
+}
 
 async function toDisplay(
   supabase: SupabaseClient,
@@ -38,6 +49,8 @@ export async function createTodo(
   supabase: SupabaseClient,
   input: CreateTodoInput,
 ): Promise<ShoppingTodoWithDisplay> {
+  const quantity = resolveQuantity(input.quantity);
+
   const { data, error } = await supabase
     .from("shopping_todos")
     .insert({
@@ -50,6 +63,7 @@ export async function createTodo(
       reference_location: input.referenceLocation ?? null,
       note: input.note ?? null,
       status: "active",
+      quantity,
     })
     .select(TODO_SELECT)
     .single();
@@ -65,6 +79,8 @@ export async function updateTodo(
   supabase: SupabaseClient,
   input: UpdateTodoInput,
 ): Promise<ShoppingTodoWithDisplay> {
+  const quantity = resolveQuantity(input.quantity);
+
   const { data, error } = await supabase
     .from("shopping_todos")
     .update({
@@ -75,6 +91,7 @@ export async function updateTodo(
       reference_currency: input.referenceCurrency ?? null,
       reference_location: input.referenceLocation ?? null,
       note: input.note ?? null,
+      quantity,
     })
     .eq("id", input.todoId)
     .eq("trip_id", input.tripId)
@@ -139,6 +156,10 @@ export async function convertTodoToItem(
     ...options.item,
     tripId: options.tripId,
     visibility: options.item.visibility ?? "private",
+    quantity:
+      options.item.quantity ??
+      parseQuantity(row.quantity) ??
+      DEFAULT_QUANTITY,
   });
 
   const { data: converted, error: convertError } = await supabase

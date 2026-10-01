@@ -69,6 +69,7 @@ function toItemCardModel(item: PublicItemSearchResult): ItemWithDisplay {
     imageUrl: item.imageUrl,
     note: null,
     visibility: item.visibility,
+    quantity: 1,
   };
 }
 

@@ -10,6 +10,7 @@ import { FormField } from "@/components/form/FormField";
 import { ImageUploader } from "@/components/form/ImageUploader";
 import { Select } from "@/components/form/Select";
 import { CATEGORY_OPTIONS } from "@/lib/category";
+import { DEFAULT_QUANTITY } from "@/lib/quantity";
 import { createClient } from "@/lib/supabase/client";
 import { uploadUserImage } from "@/lib/storage/upload";
 import { createTodo, updateTodo } from "@/lib/todos/mutations";
@@ -36,6 +37,10 @@ export function ShoppingTodoForm({
 }: ShoppingTodoFormProps) {
   const router = useRouter();
   const cancelHref = `/trips/${tripId}`;
+  // Phase 3 New Todo create always requires reference_*.
+  // Edit keeps Legacy dual-track: do not force-fill incomplete historical rows
+  // when Legacy Boundary UTC is not yet configured (or row may be Legacy).
+  const requireReferenceFields = mode === "create";
 
   const [name, setName] = useState(todo?.name ?? "");
   const [category, setCategory] = useState(todo?.category ?? "");
@@ -49,6 +54,9 @@ export function ShoppingTodoForm({
   );
   const [referenceLocation, setReferenceLocation] = useState(
     todo?.referenceLocation ?? "",
+  );
+  const [quantity, setQuantity] = useState(
+    String(todo?.quantity ?? DEFAULT_QUANTITY),
   );
   const [note, setNote] = useState(todo?.note ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -80,14 +88,18 @@ export function ShoppingTodoForm({
     e.preventDefault();
     setSubmitError(null);
 
-    const validated = validateTodoForm({
-      name,
-      category,
-      referencePrice,
-      referenceCurrency,
-      referenceLocation,
-      note,
-    });
+    const validated = validateTodoForm(
+      {
+        name,
+        category,
+        referencePrice,
+        referenceCurrency,
+        referenceLocation,
+        note,
+        quantity,
+      },
+      { requireReferenceFields },
+    );
 
     if (!validated.ok) {
       setErrors(validated.errors);
@@ -108,6 +120,7 @@ export function ShoppingTodoForm({
         referenceCurrency: validated.data.referenceCurrency,
         referenceLocation: validated.data.referenceLocation,
         note: validated.data.note,
+        quantity: validated.data.quantity,
       };
 
       if (mode === "edit" && todo) {
@@ -145,8 +158,13 @@ export function ShoppingTodoForm({
       <FormField
         label="参考价格与货币"
         htmlFor="todo-amount"
+        required={requireReferenceFields}
         error={errors.referencePrice || errors.referenceCurrency}
-        hint="可选。填写价格时必须选择货币。"
+        hint={
+          requireReferenceFields
+            ? "Phase 3 新建代办必填。"
+            : "可选。填写价格时必须选择货币。历史代办可不强制补齐。"
+        }
       >
         <CurrencyInput
           amountId="todo-amount"
@@ -162,16 +180,37 @@ export function ShoppingTodoForm({
       </FormField>
 
       <FormField
-        label="参考购买地点"
+        label="计划购买地点"
         htmlFor="todo-location"
-        hint="可选。手动输入文本，不使用地图。"
+        required={requireReferenceFields}
+        error={errors.referenceLocation}
+        hint="目标购买地点（与购物记录的实际购买地点不同）。手动输入文本，不使用地图。"
       >
         <Input
           id="todo-location"
           value={referenceLocation}
           onChange={(e) => setReferenceLocation(e.target.value)}
+          hasError={Boolean(errors.referenceLocation)}
           disabled={saving}
           placeholder="例如：曼谷 CentralWorld"
+        />
+      </FormField>
+
+      <FormField
+        label="数量"
+        htmlFor="todo-quantity"
+        error={errors.quantity}
+        hint="商品数量，默认 1。与购物记录条数不是同一概念。"
+      >
+        <Input
+          id="todo-quantity"
+          type="number"
+          min={1}
+          step={1}
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+          hasError={Boolean(errors.quantity)}
+          disabled={saving}
         />
       </FormField>
 

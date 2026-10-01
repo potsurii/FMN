@@ -10,10 +10,12 @@ export type ShoppingTodoRow = {
   category: string | null;
   reference_price: number | string | null;
   reference_currency: string | null;
+  /** Target / planned purchase location (≠ item actual purchase location). */
   reference_location: string | null;
   note: string | null;
   status: TodoStatus;
   purchased_item_id: string | null;
+  quantity: number;
   created_at: string;
   updated_at: string;
 };
@@ -27,8 +29,11 @@ export type ShoppingTodoWithDisplay = {
   category: CategorySlug | null;
   referencePrice: number | null;
   referenceCurrency: string | null;
+  /** Target / planned purchase location (≠ item actual purchase location). */
   referenceLocation: string | null;
   note: string | null;
   status: TodoStatus;
   purchasedItemId: string | null;
+  quantity: number;
+  createdAt: string;
 };

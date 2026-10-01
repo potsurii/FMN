@@ -4,7 +4,7 @@ import { mapTodoRow } from "./map";
 import type { ShoppingTodoRow, ShoppingTodoWithDisplay } from "./types";
 
 export const TODO_SELECT =
-  "id, trip_id, name, image, category, reference_price, reference_currency, reference_location, note, status, purchased_item_id, created_at, updated_at";
+  "id, trip_id, name, image, category, reference_price, reference_currency, reference_location, note, status, purchased_item_id, quantity, created_at, updated_at";
 
 async function withSignedUrl(
   supabase: SupabaseClient,

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/foundation/Button";
 import { Heading } from "@/components/foundation/Heading";
 import { Text } from "@/components/foundation/Text";
+import { CompanionHost } from "@/components/companion/CompanionHost";
 import { Header } from "@/components/navigation/Header";
 import { TripArchive } from "@/components/travel/TripArchive";
 import { requireUser } from "@/lib/auth/require-user";
@@ -100,6 +101,20 @@ export default async function MyTripsPage() {
           <TripArchive trips={trips} emptyAction={createAction} />
         )}
       </main>
+
+      <CompanionHost
+        context={{
+          entry: "global",
+          tripId: null,
+          tripName: null,
+        }}
+        trips={trips.map((t) => ({
+          id: t.id,
+          name: t.name,
+          startDate: t.startDate,
+          endDate: t.endDate,
+        }))}
+      />
     </div>
   );
 }

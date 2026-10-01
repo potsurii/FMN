@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/foundation/Button";
 import { Heading } from "@/components/foundation/Heading";
 import { ShareButton } from "@/components/foundation/ShareButton";
+import { CompanionHost } from "@/components/companion/CompanionHost";
 import { ItemGrid } from "@/components/item/ItemGrid";
 import { BackButton } from "@/components/navigation/BackButton";
 import { Header } from "@/components/navigation/Header";
@@ -21,6 +22,7 @@ import { fetchRecommendationCountsForItems } from "@/lib/recommendations/queries
 import { tripSharePath } from "@/lib/share/paths";
 import { fetchActiveTodosByTripId } from "@/lib/todos/queries";
 import { fetchTripWithStatsById } from "@/lib/trips/detail";
+import { fetchTripsWithStats } from "@/lib/trips/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +55,9 @@ export default async function TripDetailPage({
   const items = await fetchItemsByTripId(supabase, tripId);
   const todos = isOwner
     ? await fetchActiveTodosByTripId(supabase, tripId)
+    : [];
+  const ownerTrips = isOwner
+    ? await fetchTripsWithStats(supabase, user.id)
     : [];
   const publicItemIds =
     trip.visibility === "public"
@@ -150,6 +155,22 @@ export default async function TripDetailPage({
           }
         />
       </main>
+
+      {isOwner ? (
+        <CompanionHost
+          context={{
+            entry: "trip",
+            tripId: trip.id,
+            tripName: trip.name,
+          }}
+          trips={ownerTrips.map((t) => ({
+            id: t.id,
+            name: t.name,
+            startDate: t.startDate,
+            endDate: t.endDate,
+          }))}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_QUANTITY, parseQuantity } from "@/lib/quantity";
+import { createSignedImageUrl } from "@/lib/storage/upload";
 import { mapItemRecord } from "./map";
 import type { ItemRecord, ItemWithDisplay, Visibility } from "./types";
-import { createSignedImageUrl } from "@/lib/storage/upload";
 
 export type CreateItemInput = {
   tripId: string;
@@ -14,6 +15,7 @@ export type CreateItemInput = {
   imagePath?: string | null;
   note?: string | null;
   visibility?: Visibility;
+  quantity?: number;
 };
 
 export type UpdateItemInput = {
@@ -28,10 +30,19 @@ export type UpdateItemInput = {
   imagePath?: string | null;
   note?: string | null;
   visibility: Visibility;
+  quantity?: number;
 };
 
 const ITEM_SELECT =
-  "id, trip_id, name, price, currency, location, purchase_date, category, image, note, visibility, created_at";
+  "id, trip_id, name, price, currency, location, purchase_date, category, image, note, visibility, quantity, created_at";
+
+function resolveQuantity(value: number | undefined): number {
+  const parsed = parseQuantity(value ?? DEFAULT_QUANTITY);
+  if (parsed === null) {
+    throw new Error("数量必须为大于等于 1 的整数");
+  }
+  return parsed;
+}
 
 async function toDisplay(
   supabase: SupabaseClient,
@@ -49,6 +60,8 @@ export async function createItem(
   supabase: SupabaseClient,
   input: CreateItemInput,
 ): Promise<ItemWithDisplay> {
+  const quantity = resolveQuantity(input.quantity);
+
   const { data, error } = await supabase
     .from("items")
     .insert({
@@ -62,6 +75,7 @@ export async function createItem(
       image: input.imagePath ?? null,
       note: input.note?.trim() ? input.note.trim() : null,
       visibility: input.visibility ?? "private",
+      quantity,
     })
     .select(ITEM_SELECT)
     .single();
@@ -77,6 +91,8 @@ export async function updateItem(
   supabase: SupabaseClient,
   input: UpdateItemInput,
 ): Promise<ItemWithDisplay> {
+  const quantity = resolveQuantity(input.quantity);
+
   const { data, error } = await supabase
     .from("items")
     .update({
@@ -89,6 +105,7 @@ export async function updateItem(
       image: input.imagePath ?? null,
       note: input.note?.trim() ? input.note.trim() : null,
       visibility: input.visibility,
+      quantity,
     })
     .eq("id", input.itemId)
     .eq("trip_id", input.tripId)

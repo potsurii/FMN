@@ -4,7 +4,7 @@ import { mapItemRecord } from "./map";
 import type { ItemRecord, ItemWithDisplay } from "./types";
 
 const ITEM_SELECT =
-  "id, trip_id, name, price, currency, location, purchase_date, category, image, note, visibility, created_at";
+  "id, trip_id, name, price, currency, location, purchase_date, category, image, note, visibility, quantity, created_at";
 
 export async function fetchItemById(
   supabase: SupabaseClient,

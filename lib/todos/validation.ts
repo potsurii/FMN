@@ -1,4 +1,9 @@
 import { isCategorySlug, type CategorySlug } from "@/lib/category";
+import {
+  DEFAULT_QUANTITY,
+  parseQuantity,
+  quantityErrorMessage,
+} from "@/lib/quantity";
 
 export type TodoFormValues = {
   name: string;
@@ -7,6 +12,7 @@ export type TodoFormValues = {
   referenceCurrency: string;
   referenceLocation: string;
   note: string;
+  quantity: string;
 };
 
 export type TodoValidatedInput = {
@@ -16,10 +22,20 @@ export type TodoValidatedInput = {
   referenceCurrency: string | null;
   referenceLocation: string | null;
   note: string | null;
+  quantity: number;
+};
+
+export type ValidateTodoFormOptions = {
+  /**
+   * Phase 3 New Todo create: require reference_price/currency/location.
+   * Legacy edit (or unknown boundary): do not force-fill incomplete history.
+   */
+  requireReferenceFields: boolean;
 };
 
 export function validateTodoForm(
   values: TodoFormValues,
+  options: ValidateTodoFormOptions = { requireReferenceFields: false },
 ): { ok: true; data: TodoValidatedInput } | { ok: false; errors: Record<string, string> } {
   const errors: Record<string, string> = {};
   const name = values.name.trim();
@@ -39,8 +55,35 @@ export function validateTodoForm(
   const priceRaw = values.referencePrice.trim();
   let referencePrice: number | null = null;
   let referenceCurrency: string | null = null;
+  const currencyRaw = values.referenceCurrency.trim();
+  const locationRaw = values.referenceLocation.trim();
 
-  if (priceRaw !== "") {
+  if (options.requireReferenceFields) {
+    if (priceRaw === "") {
+      errors.referencePrice = "请填写参考价格";
+    } else {
+      const price = Number(priceRaw);
+      if (!Number.isFinite(price)) {
+        errors.referencePrice = "请填写有效参考价格";
+      } else if (price < 0) {
+        errors.referencePrice = "参考价格不能为负数";
+      } else {
+        referencePrice = price;
+      }
+    }
+
+    if (!currencyRaw) {
+      errors.referenceCurrency = "请选择参考货币";
+    } else if (!/^[A-Za-z]{3}$/.test(currencyRaw)) {
+      errors.referenceCurrency = "请选择有效货币";
+    } else {
+      referenceCurrency = currencyRaw.toUpperCase();
+    }
+
+    if (!locationRaw) {
+      errors.referenceLocation = "请填写计划购买地点";
+    }
+  } else if (priceRaw !== "") {
     const price = Number(priceRaw);
     if (!Number.isFinite(price)) {
       errors.referencePrice = "请填写有效参考价格";
@@ -50,14 +93,25 @@ export function validateTodoForm(
       referencePrice = price;
     }
 
-    if (!values.referenceCurrency.trim()) {
+    if (!currencyRaw) {
       errors.referenceCurrency = "填写参考价格时必须选择货币";
-    } else if (!/^[A-Za-z]{3}$/.test(values.referenceCurrency.trim())) {
+    } else if (!/^[A-Za-z]{3}$/.test(currencyRaw)) {
       errors.referenceCurrency = "请选择有效货币";
     } else {
-      referenceCurrency = values.referenceCurrency.trim().toUpperCase();
+      referenceCurrency = currencyRaw.toUpperCase();
     }
   }
+
+  const qtyErr = quantityErrorMessage(
+    values.quantity.trim() === "" ? DEFAULT_QUANTITY : values.quantity,
+  );
+  if (qtyErr) {
+    errors.quantity = qtyErr;
+  }
+  const quantity =
+    parseQuantity(
+      values.quantity.trim() === "" ? DEFAULT_QUANTITY : values.quantity,
+    ) ?? DEFAULT_QUANTITY;
 
   if (Object.keys(errors).length > 0) {
     return { ok: false, errors };
@@ -70,10 +124,9 @@ export function validateTodoForm(
       category,
       referencePrice,
       referenceCurrency,
-      referenceLocation: values.referenceLocation.trim()
-        ? values.referenceLocation.trim()
-        : null,
+      referenceLocation: locationRaw ? locationRaw : null,
       note: values.note.trim() ? values.note.trim() : null,
+      quantity,
     },
   };
 }

@@ -12,6 +12,7 @@ export type ItemRecord = {
   image: string | null;
   note: string | null;
   visibility: Visibility;
+  quantity: number;
   created_at: string;
 };
 
@@ -28,4 +29,5 @@ export type ItemWithDisplay = {
   imageUrl: string | null;
   note: string | null;
   visibility: Visibility;
+  quantity: number;
 };

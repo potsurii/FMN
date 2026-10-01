@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test:batch1": "npx --yes tsx scripts/batch1-verify.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

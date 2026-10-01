@@ -18,6 +18,7 @@ import {
   isPurchaseDateInTripRange,
   purchaseDateOutOfRangeMessage,
 } from "@/lib/items/validation";
+import { DEFAULT_QUANTITY, parseQuantity, quantityErrorMessage } from "@/lib/quantity";
 import { createClient } from "@/lib/supabase/client";
 import { uploadUserImage } from "@/lib/storage/upload";
 import { convertTodoToItem } from "@/lib/todos/mutations";
@@ -89,6 +90,9 @@ export function ItemForm({
   );
   const [category, setCategory] = useState(initialCategory);
   const [note, setNote] = useState(initialNote);
+  const [quantity, setQuantity] = useState(
+    String(item?.quantity ?? todo?.quantity ?? DEFAULT_QUANTITY),
+  );
   const [visibility, setVisibility] = useState<Visibility>(
     tripIsPrivate
       ? "private"
@@ -129,6 +133,10 @@ export function ItemForm({
       );
     }
     if (!isCategorySlug(category)) next.category = "请选择分类";
+    const qtyMsg = quantityErrorMessage(
+      quantity.trim() === "" ? DEFAULT_QUANTITY : quantity,
+    );
+    if (qtyMsg) next.quantity = qtyMsg;
     if (tripIsPrivate && visibility === "public") {
       next.visibility = "私密旅行中的商品只能设为私密";
     }
@@ -173,6 +181,10 @@ export function ItemForm({
         imagePath,
         note,
         visibility: resolvedVisibility,
+        quantity:
+          parseQuantity(
+            quantity.trim() === "" ? DEFAULT_QUANTITY : quantity,
+          ) ?? DEFAULT_QUANTITY,
       };
 
       if (mode === "edit" && item) {
@@ -235,7 +247,7 @@ export function ItemForm({
         htmlFor="item-location"
         required
         error={errors.location}
-        hint="手动输入地点文本，不使用地图"
+        hint="实际购买地点。手动输入地点文本，不使用地图"
       >
         <Input
           id="item-location"
@@ -261,6 +273,24 @@ export function ItemForm({
           max={tripEndDate}
           onChange={(e) => setPurchaseDate(e.target.value)}
           hasError={Boolean(errors.purchaseDate)}
+          disabled={saving}
+        />
+      </FormField>
+
+      <FormField
+        label="数量"
+        htmlFor="item-quantity"
+        error={errors.quantity}
+        hint="商品数量，默认 1。与购物记录条数不是同一概念。"
+      >
+        <Input
+          id="item-quantity"
+          type="number"
+          min={1}
+          step={1}
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+          hasError={Boolean(errors.quantity)}
           disabled={saving}
         />
       </FormField>

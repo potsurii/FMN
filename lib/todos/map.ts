@@ -1,4 +1,5 @@
 import { isCategorySlug } from "@/lib/category";
+import { normalizeQuantity } from "@/lib/quantity";
 import type { ShoppingTodoRow, ShoppingTodoWithDisplay } from "./types";
 
 export function mapTodoRow(
@@ -24,5 +25,7 @@ export function mapTodoRow(
     note: row.note,
     status: row.status,
     purchasedItemId: row.purchased_item_id,
+    quantity: normalizeQuantity(row.quantity),
+    createdAt: row.created_at,
   };
 }
