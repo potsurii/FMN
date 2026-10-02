@@ -794,7 +794,8 @@ Option B — 以 created_at 为边界
 
 ```text
 Phase 3 Migration Boundary
-  = 由 Phase 3 migration / deployment 明确写入的固定 UTC timestamp
+  = 2026-10-02T00:00:00.000Z
+  （Product Owner 明确指定）
 ```
 
 ### 判定规则

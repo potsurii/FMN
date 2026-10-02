@@ -37,9 +37,9 @@ export function ShoppingTodoForm({
 }: ShoppingTodoFormProps) {
   const router = useRouter();
   const cancelHref = `/trips/${tripId}`;
-  // Phase 3 New Todo create always requires reference_*.
-  // Edit keeps Legacy dual-track: do not force-fill incomplete historical rows
-  // when Legacy Boundary UTC is not yet configured (or row may be Legacy).
+  // Legacy/New classification uses FMN_LEGACY_TODO_BOUNDARY_UTC
+  // (see lib/todos/legacy-boundary.ts).
+  // New Todo requires reference_* fields; Legacy Todo is exempt.
   const requireReferenceFields = mode === "create";
 
   const [name, setName] = useState(todo?.name ?? "");

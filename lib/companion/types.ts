@@ -43,6 +43,35 @@ export type ShoppingRecordDraft = {
   visibility: Visibility;
 };
 
+/**
+ * F3-04 Shopping Todo Draft (Companion path).
+ * reference_location = Target Purchase Location (计划购买地点).
+ * Phase 3 New Todo required: Trip, Product, reference_price,
+ * reference_currency, reference_location — validated before Confirm write.
+ */
+export type ShoppingTodoDraft = {
+  version: 1;
+  draftType: "shopping_todo";
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  sourceText: string;
+  tripId: string | null;
+  tripLabel: string | null;
+  name: string;
+  /** Concrete reference price only — never budget / range / approx. */
+  referencePrice: number | null;
+  referenceCurrency: string | null;
+  /** Target purchase location (计划购买地点). */
+  referenceLocation: string;
+  category: CategorySlug | null;
+  note: string;
+  quantity: number;
+  imagePath: string | null;
+};
+
+export type CompanionDraft = ShoppingRecordDraft | ShoppingTodoDraft;
+
 export type TaskFinalState =
   | "active"
   | "completed"
@@ -106,5 +135,31 @@ export function createEmptyShoppingRecordDraft(options: {
     imagePath: null,
     receiptImageRef: null,
     visibility: "private",
+  };
+}
+
+export function createEmptyShoppingTodoDraft(options: {
+  sourceText: string;
+  tripId: string | null;
+  tripLabel: string | null;
+}): ShoppingTodoDraft {
+  const now = new Date().toISOString();
+  return {
+    version: 1,
+    draftType: "shopping_todo",
+    id: newDraftId(),
+    createdAt: now,
+    updatedAt: now,
+    sourceText: options.sourceText,
+    tripId: options.tripId,
+    tripLabel: options.tripLabel,
+    name: "",
+    referencePrice: null,
+    referenceCurrency: null,
+    referenceLocation: "",
+    category: null,
+    note: "",
+    quantity: DEFAULT_QUANTITY,
+    imagePath: null,
   };
 }

@@ -24,6 +24,7 @@ import {
 import {
   getLegacyTodoBoundaryUtc,
   classifyTodoLegacy,
+  FMN_LEGACY_TODO_BOUNDARY_UTC_ISO,
 } from "../lib/todos/legacy-boundary";
 import { validateTodoForm } from "../lib/todos/validation";
 
@@ -39,9 +40,15 @@ assert.equal(parseQuantity("3"), 3);
 assert.equal(normalizeQuantity(undefined), 1);
 assert.ok(quantityErrorMessage("0"));
 
-section("Legacy boundary — must not invent UTC");
-assert.equal(getLegacyTodoBoundaryUtc(), null);
-assert.equal(classifyTodoLegacy("2026-01-01T00:00:00.000Z"), "unknown");
+section("Legacy boundary — approved fixed UTC");
+assert.equal(getLegacyTodoBoundaryUtc(), "2026-10-02T00:00:00.000Z");
+assert.equal(FMN_LEGACY_TODO_BOUNDARY_UTC_ISO, "2026-10-02T00:00:00.000Z");
+assert.equal(classifyTodoLegacy("2026-10-01T23:59:59.999Z"), "legacy");
+assert.equal(classifyTodoLegacy("2026-10-02T00:00:00.000Z"), "new");
+assert.equal(classifyTodoLegacy("2026-10-02T00:00:00.001Z"), "new");
+assert.equal(classifyTodoLegacy("not-a-date"), "unknown");
+assert.equal(classifyTodoLegacy(""), "unknown");
+
 
 section("New Todo required reference fields (create)");
 {

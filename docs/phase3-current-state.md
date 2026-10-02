@@ -1,6 +1,6 @@
 # Phase 3 Current State
 
-Factual implementation baseline after Phase 3 Batch 1 acceptance and Batch 2A (F3-02 own-history foundation).
+Factual implementation baseline after Phase 3 Batch 1 acceptance, Batch 2A (F3-02), and Batch 2B (Legacy Boundary UTC + F3-03 + F3-04 formal path).
 
 This document describes **what exists in the repository now**.  
 It is not a product requirements document and not an implementation plan.
@@ -13,11 +13,11 @@ It is not a product requirements document and not an implementation plan.
 | :--- | :--- |
 | Date | 2026-10-02 |
 | Branch | `master` |
-| Last committed HEAD | `4b9c928` — `chore(fmn): add eslint flat config` |
-| Prior Batch 1 feature commit | `a65a4e5` — `feat(fmn): implement phase 3 batch 1 foundation` |
-| Prior Batch 1 docs commit | `49c7138` — `docs(fmn): add phase 3 specifications and cursor rules` |
-| Phase 3 batch status | **Batch 1 accepted**; **Batch 2A implemented** (working tree; not yet committed at doc update) |
-| Verification | `npm run phase3:check` / `lint` / `typecheck` / `test:batch1` / `test:batch2a` / `build` — all PASS (`phase3:check` may WARN on Legacy Boundary) |
+| Last committed HEAD | `3d16eaf` — `docs(fmn): archive phase 3 implementation plan v2` |
+| Prior Batch 2A feature commit | `fa86bfe` — `feat(fmn): add F3-02 own-history and architecture baseline` |
+| Prior Batch 1 eslint commit | `4b9c928` — `chore(fmn): add eslint flat config` |
+| Phase 3 batch status | **Batch 1 accepted**; **Batch 2A committed**; **Batch 2B implemented** (working tree; not yet committed at doc update) |
+| Verification | `npm run phase3:check` / `test:batch1` / `test:batch2a` / `test:batch2b` / `typecheck` / `lint` / `build` |
 
 Related product / decision sources (do not treat as “implemented” unless listed below):
 
@@ -41,7 +41,7 @@ Related product / decision sources (do not treat as “implemented” unless lis
 | Scanner | `scripts/phase3-boundary-check.ts` |
 | npm script | `npm run phase3:check` |
 
-Checks: forbidden `/companion` route, AI component family, conversation DB tables, OCR/STT/LLM deps, `lib/history` ↛ `lib/search`, historical-search read-only, required Companion / Draft / data-foundation baseline. Exit `0` = no FAIL (WARN allowed).
+Checks: forbidden `/companion` route, AI component family, conversation DB tables, OCR/STT/LLM deps, `lib/history` ↛ `lib/search`, historical-search read-only, required Companion / Draft / data-foundation baseline, Legacy Boundary fixed UTC constant. Exit `0` = no FAIL (WARN allowed).
 
 ---
 
@@ -62,7 +62,6 @@ Migration:
 
 - Table `receipts`: `id`, `user_id`, `image_path`, `receipt_date`, `created_at`
 - Table `receipt_items`: `(receipt_id, item_id)` PK; `receipt_items_item_id_unique` on `item_id`
-- FKs: receipts → `auth.users`; receipt_items → receipts / items (`ON DELETE CASCADE` on join rows)
 - App DAL: `lib/receipts/types.ts`, `lib/receipts/mutations.ts`
 
 #### Storage
@@ -77,11 +76,10 @@ Migration:
 - Own-row policies for select / insert / update / delete (receipt_items has no update policy)
 - Storage path-prefix own policies for both receipt buckets
 
-#### Explicitly not completed in Step 1
+#### Explicitly not completed in Batch 1 Step 1
 
-- Legacy Todo boundary UTC timestamp is **not** written in migration (requires Product Owner / deployment input)
-- Runtime gate stub: `lib/todos/legacy-boundary.ts` via `FMN_LEGACY_TODO_BOUNDARY_UTC` (returns `unknown` until set)
 - I-01 multi-write batch transaction RPC / function skeleton is **not** present
+- (Legacy Boundary UTC completed later in Batch 2B Step 0 — see below)
 
 ---
 
@@ -94,8 +92,7 @@ UI:
 | Host | `components/companion/CompanionHost.tsx` |
 | Launcher | `components/companion/CompanionLauncher.tsx` |
 | Surface | `components/companion/CompanionSurface.tsx` |
-| Draft review | `components/companion/RecordDraftReview.tsx` |
-| History results | `components/companion/HistoryResultSection.tsx` |
+| Record Draft review | `components/companion/RecordDraftReview.tsx` |
 
 Mount points:
 
@@ -125,20 +122,13 @@ Runtime:
 | Explicit Confirm intent | `lib/companion/confirm-intent.ts` + Confirm button; non-confirm phrases do not write |
 | Formal write | `lib/workflows/record-input/confirm-write.ts` → `confirmShoppingRecordWrite` → `createItem` |
 
-Guarantees in current code:
+Guarantees:
 
 - Input → Draft → Review → Explicit Confirm → Formal Write
 - Global Entry with Trip unset: Confirm disabled until Trip is chosen
 - No guessing of Product / Price / Location when absent from input
-- Bare digits alone must not invent price (Batch 1 verification covers this)
 
-Not in Batch 1:
-
-- Receipt OCR path
-- Voice / STT path
-- LLM-assisted understanding
-
-Verification script: `scripts/batch1-verify.ts` (`npm run test:batch1`)
+Verification: `scripts/batch1-verify.ts` (`npm run test:batch1`)
 
 ---
 
@@ -150,57 +140,133 @@ Verification script: `scripts/batch1-verify.ts` (`npm run test:batch1`)
 
 | File | Role |
 | :--- | :--- |
-| `types.ts` | `OwnHistoryQuery` (name, category, min/maxPrice, currency, location, purchaseDateFrom/To, tripId); `OWN_HISTORY_LIMIT` |
+| `types.ts` | `OwnHistoryQuery`; `OWN_HISTORY_LIMIT` |
 | `sanitize.ts` | Local ILIKE sanitization — **does not** import `lib/search` |
-| `queries.ts` | `searchOwnItems()` — `trips!inner` + `trips.user_id`; no `visibility` filter; includes own private items |
+| `queries.ts` | `searchOwnItems()` — `trips!inner` + `trips.user_id`; includes own private items |
 
 #### Workflow (`lib/workflows/historical-search/`)
 
 | File | Role |
 | :--- | :--- |
-| `parse-query.ts` | Deterministic intent + filter parse; blocks L-01 / L-03 cues; asks when price lacks currency |
-| `run-search.ts` | Server action `runOwnHistorySearch` — auth + parse + DAL; **no** `createItem` / mutations |
+| `parse-query.ts` | Deterministic intent + filter parse; blocks L-01 / L-03 cues |
+| `run-search.ts` | Server action `runOwnHistorySearch` — auth + parse + DAL; **no** mutations |
 
 #### Companion integration
 
-- `CompanionHost` routes: record → F3-01 Draft; history → F3-02 search; ambiguous → ask
 - History path: **no Draft**, **no Confirm**, **no formal write**
-- Trip Entry may pass `defaultTripId` as a query hint only (Context ≠ Permission)
-- Results: `HistoryResultSection` reuses `ItemCard` + `EmptyState` (`NoHistoryMatches`)
-
-#### Allowed query dimensions
-
-- product name, category, price (+ currency), purchase location, purchase date range, trip id
-
-#### Explicitly not in Batch 2A
-
-- Brand / Destination (L-01)
-- “最近” / relative trip (L-03)
-- OCR / STT / LLM
-- F3-03 / F3-04 / F3-05
-- Public search changes (`lib/search/**`, `app/search/page.tsx` untouched)
-- No new migration
+- Results: `HistoryResultSection` reuses `ItemCard` + `EmptyState`
 
 Verification: `scripts/batch2a-verify.ts` (`npm run test:batch2a`)
 
 ---
 
-## 3. Existing Architecture Boundaries
+### Batch 2B — Step 0: Legacy Boundary UTC
 
-Recorded as **current repository reality** (aligned with locked Phase 3 rules):
+**Status:** Implemented (Product Owner approved)
+
+| Item | Value / path |
+| :--- | :--- |
+| Boundary UTC | `2026-10-02T00:00:00.000Z` |
+| Runtime constant | `lib/todos/legacy-boundary.ts` → `FMN_LEGACY_TODO_BOUNDARY_UTC` / `_ISO` |
+| Classifier | `classifyTodoLegacy` → `"legacy"` \| `"new"` \| `"unknown"` (invalid dates → `"unknown"`) |
+| Migration (comment only) | `supabase/migrations/20261002120000_phase3_todo_legacy_boundary.sql` |
+| Decision Log | `docs/phase3-decisions.md` D2-06 补充：Boundary 定义 |
+| Table comment | Prior `obj_description` was NULL; comment set (no overwrite merge needed) |
+
+Does **not**: rewrite old Todo rows, add `NOT NULL`, change RLS.
+
+---
+
+### Batch 2B — Step 5: F3-03 Organize
+
+**Status:** Implemented for fields already in the data model (read-only)
+
+#### Workflow (`lib/workflows/organize/`)
+
+| File | Role |
+| :--- | :--- |
+| `types.ts` | Spec + result view (recordCount ≠ quantitySum; per-currency totals) |
+| `parse-query.ts` | Deterministic parse; explicit price bounds; blocks L-01 Destination / Brand cues / L-03 最近 |
+| `compute.ts` | Pure filter/group/sort/aggregate (no DB, no mutations) |
+| `run-organize.ts` | Server entry — reuses `lib/history.searchOwnItems`; no writes |
+
+#### Companion UI
+
+- `OrganizeResultSection` — StatGroup (Record Count / Quantity) + per-currency Stat + ItemCard groups
+- `CompanionHost` routes `organize` intent → `runOrganize`
+
+#### Supported
+
+- Filter: category / **explicit price bounds** (`minPrice` / `maxPrice` + currency) / currency / location / purchase date / trip
+  - e.g. `价格高于 3000 日元`, `价格低于 3000 日元`, `3000 日元以内`, `价格在 2000-5000 日元之间`
+  - Approx (`预算` / `大概` / `左右`) does **not** become exact price bounds
+- Group: category / currency / trip
+- Sort: price / date / product name
+- Aggregate: record count, quantity sum, **per-currency totals only** (no FX)
+
+#### Explicitly blocked / not invented
+
+- Brand intent via explicit `牌子` / `品牌` cues (L-01) — returns unsupported message (no brand vocabulary; bare names alone are not treated as Brand)
+- Destination / relative trip (L-01) — returns unsupported message
+- “最近” window (L-03) — returns unsupported message
+- Cross-currency sum / FX
+- Any item create/update/delete
+
+---
+
+### Batch 2B — Step 6: F3-04 Todo Formal Path (Companion)
+
+**Status:** Implemented (Draft → Explicit Confirm → Write); Phase 2 manual form unchanged
+
+#### Workflow (`lib/workflows/todo-planning/`)
+
+| File | Role |
+| :--- | :--- |
+| `text-parse.ts` | Rule parse → `ShoppingTodoDraft`; budget/approx → ask (no draft write) |
+| `confirm-write.ts` | `confirmShoppingTodoWrite` → `createTodo` after server re-validation |
+
+#### Companion UI / runtime
+
+- `ShoppingTodoDraft` in `lib/companion/types.ts`
+- `TodoDraftReview` — required fields gate Confirm
+- `CompanionHost` routes `todo` intent; Confirm button / explicit confirm phrases only
+
+#### New Todo required (application layer; no DB `NOT NULL`)
+
+- Trip, Product, `reference_price` (concrete), `reference_currency`, `reference_location` (计划购买地点)
+
+#### Price semantics
+
+- Concrete (e.g. `3000 日元`) → may set `reference_price`
+- 预算 / 大概 / 以内 / 左右 / 上下（与数字同句且距离 ≤10 字符）→ **ask**; never invent formal price
+- Unrelated `以下` / `上下` in other clauses do not block
+
+#### Explicitly not in Batch 2B
+
+- L-02 Duplicate Detection equality / auto-merge
+- Public Product candidate selector (optional; not required this batch)
+- Legacy Todo force-fill of New required fields
+
+Verification: `scripts/batch2b-verify.ts` (`npm run test:batch2b`)
+
+---
+
+## 3. Existing Architecture Boundaries
 
 | Boundary | Current state |
 | :--- | :--- |
 | No `/companion` route | No `app/companion/**`; Companion is in-page Surface only |
 | No Conversation database | No `conversations` / `messages` tables |
 | Conversation is in-memory | Cleared on Companion close / refresh / tab close |
-| Draft ≠ Formal Record | Draft is localStorage + review UI; formal data only after Explicit Confirm write |
-| Context ≠ Permission | Companion Context is default write/query context; RLS / ownership remain the permission boundary |
-| Public search ≠ Private history | `lib/search/**` + `/search` = public discovery; `lib/history/**` = own-history only (isolated) |
+| Draft ≠ Formal Record / Todo | Draft is localStorage + review UI; formal data only after Explicit Confirm |
+| Context ≠ Permission | Companion Context is default write/query context; RLS / ownership remain permission boundary |
+| Public search ≠ Private history | `lib/search/**` + `/search` = public; `lib/history/**` = own-history only (isolated) |
+| Organize is read-only | `lib/workflows/organize` reuses history; no item mutations |
 | No AI provider integration | No OCR / STT / LLM packages or providers in application code |
 | No AI-parallel UI components | No `AIButton` / `AIInput` / `AIForm` in `*.ts` / `*.tsx` |
 | No Agent loop | F3-05 orchestration not implemented |
-| Formal write safety | F3-01 Confirm path only; F3-02 is read-only |
+| Formal write safety | F3-01 / F3-04 Confirm paths only; F3-02 / F3-03 read-only |
+| Legacy / New Todo boundary | Fixed UTC `2026-10-02T00:00:00.000Z` |
 | Boundary automation | `npm run phase3:check` |
 
 ---
@@ -211,8 +277,8 @@ From `docs/phase3-decisions.md` Later Decisions (implementation must not invent 
 
 | ID | Topic | Status | Blocks |
 | :--- | :--- | :--- | :--- |
-| L-01 | Destination / Brand data model semantics | Later | Full F3-02 product conditions that need Brand / Destination |
-| L-02 | Duplicate detection equality rules | Later | Full F3-04 duplicate handling |
+| L-01 | Destination / Brand data model semantics | Later | Full Destination matching; Brand beyond explicit `牌子`/`品牌` cues; schema invention |
+| L-02 | Duplicate detection equality rules | Later | Full F3-04 duplicate handling (auto-merge forbidden) |
 | L-03 | “最近” / recent time window definition | Later | Full F3-02 / F3-03 “最近” behavior |
 | L-04 | OCR provider (Layer 2) | Later (Privacy Layer 1 closed) | F3-01 Receipt OCR path |
 | L-05 | STT provider (Layer 2) | Later (Privacy Layer 1 closed) | F3-01 Voice path |
@@ -222,7 +288,6 @@ Additional open inputs (not Later Decisions, but unfinished):
 
 | Item | Current state |
 | :--- | :--- |
-| Legacy Todo Boundary UTC | Pending Product Owner; env stub only (`phase3:check` WARNs when unset) |
 | I-01 batch transaction RPC | Decision closed; multi-write TX mechanism not implemented yet |
 | I-02 receipt temp lifecycle | Buckets/RLS stubs present; promote/cleanup not implemented |
 
@@ -232,18 +297,17 @@ Additional open inputs (not Later Decisions, but unfinished):
 
 Suggested next coding slices (not started):
 
-- Expand F3-02 UX (e.g. “查看全部” within Surface) without inventing L-03
-- F3-03 organize (blocked on L-03 for “最近”)
-- F3-04 Todo Companion path (blocked on L-02 for duplicates)
+- Batch 2B Review / acceptance
 - I-01 / I-02 when multi-write / receipt lifecycle is in scope
 - OCR / STT / LLM only after L-04 / L-05 / L-06 Layer 2 close
+- F3-05 / Agent loop only when explicitly authorized
 
 Remain forbidden until Later closes:
 
 - Brand / Destination schema invention
 - “最近” product semantics
+- Duplicate auto-merge rules
 - Agent loop / F3-05 early
-- Inventing Legacy Boundary UTC
 - Converting public `lib/search` into private history
 
 ---
@@ -281,5 +345,3 @@ Remain forbidden until Later closes:
    ```
 
 6. Minimum necessary change for the active coding batch only. Do not start Phase 4 or out-of-batch features early.
-
-7. Run `npm run phase3:check` before considering Phase 3 slices done.

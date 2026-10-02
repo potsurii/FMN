@@ -20,9 +20,11 @@ const results: CheckResult[] = [];
 function pass(message: string) {
   results.push({ level: "pass", message });
 }
+/** Reserved for non-blocking findings (currently unused; Legacy UTC is PASS). */
 function warn(message: string) {
   results.push({ level: "warn", message });
 }
+void warn;
 function fail(message: string) {
   results.push({ level: "fail", message });
 }
@@ -288,10 +290,16 @@ function checkRequiredBaseline() {
     fail("phase3 migration missing quantity or receipt_items");
   }
 
-  if (!process.env.FMN_LEGACY_TODO_BOUNDARY_UTC?.trim()) {
-    warn("Legacy Boundary unresolved (FMN_LEGACY_TODO_BOUNDARY_UTC unset)");
+  const legacySrc = exists("lib/todos/legacy-boundary.ts")
+    ? readText("lib/todos/legacy-boundary.ts")
+    : "";
+  if (
+    legacySrc.includes('FMN_LEGACY_TODO_BOUNDARY_UTC_ISO') &&
+    legacySrc.includes("2026-10-02T00:00:00.000Z")
+  ) {
+    pass("Legacy Boundary fixed UTC constant present");
   } else {
-    pass("Legacy Boundary env configured");
+    fail("Legacy Boundary fixed UTC constant missing");
   }
 }
 

@@ -11,13 +11,25 @@ export type HistoryParseResult =
   | { status: "blocked"; code: "L-01" | "L-03"; message: string }
   | { status: "ask"; message: string };
 
-export type CompanionIntent = "record" | "history" | "ambiguous" | "none";
+export type CompanionIntent =
+  | "record"
+  | "history"
+  | "organize"
+  | "todo"
+  | "ambiguous"
+  | "none";
 
 const HISTORY_CUE_RE =
   /(?:查(?:询|一下|找)?|买过|历史|我的记录|搜(?:索|一下)?|找一找|有没有买)/i;
 
 const RECORD_CUE_RE =
   /(?:商品名称|价格|实付|花了|付了|录入|记一下|帮我记|写入|保存记录)/i;
+
+const ORGANIZE_CUE_RE =
+  /整理|汇总|统计|按分类|按货币|分币种|总花费|帮我整理|分别统计|列出我买过/;
+
+const TODO_CUE_RE =
+  /帮我加(?:一个|条)?|加入代办|购物代办|准备买|计划买|创建代办|\btodo\b/i;
 
 const RECENT_RE = /最近/;
 const RELATIVE_TRIP_RE = /上次去|第一次去|前几次/;
@@ -56,9 +68,20 @@ const NAME_BOUGHT_RE =
 export function classifyCompanionIntent(text: string): CompanionIntent {
   const t = text.trim();
   if (!t) return "none";
+
+  const organize = ORGANIZE_CUE_RE.test(t);
+  const todo = TODO_CUE_RE.test(t);
   const history = HISTORY_CUE_RE.test(t);
   const record = RECORD_CUE_RE.test(t);
-  if (history && record) return "ambiguous";
+
+  const hits = [organize, todo, history, record].filter(Boolean).length;
+  if (hits > 1) {
+    // 整理 overrides plain 列出/查 when organize cues present alone with history list phrasing
+    if (organize && history && !todo && !record) return "organize";
+    return "ambiguous";
+  }
+  if (organize) return "organize";
+  if (todo) return "todo";
   if (history) return "history";
   if (record) return "record";
   return "none";

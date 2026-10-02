@@ -1,8 +1,10 @@
 import {
   DRAFT_TTL_MS,
   draftStorageKey,
+  type CompanionDraft,
   type DraftType,
   type ShoppingRecordDraft,
+  type ShoppingTodoDraft,
 } from "./types";
 
 function isBrowser(): boolean {
@@ -27,7 +29,23 @@ function isShoppingRecordDraft(value: unknown): value is ShoppingRecordDraft {
   );
 }
 
-export function saveDraft(draft: ShoppingRecordDraft): void {
+function isShoppingTodoDraft(value: unknown): value is ShoppingTodoDraft {
+  if (!value || typeof value !== "object") return false;
+  const d = value as Partial<ShoppingTodoDraft>;
+  return (
+    d.version === 1 &&
+    d.draftType === "shopping_todo" &&
+    typeof d.id === "string" &&
+    typeof d.updatedAt === "string" &&
+    typeof d.sourceText === "string"
+  );
+}
+
+function isCompanionDraft(value: unknown): value is CompanionDraft {
+  return isShoppingRecordDraft(value) || isShoppingTodoDraft(value);
+}
+
+export function saveDraft(draft: CompanionDraft): void {
   if (!isBrowser()) return;
   const next = { ...draft, updatedAt: new Date().toISOString() };
   try {
@@ -43,13 +61,13 @@ export function saveDraft(draft: ShoppingRecordDraft): void {
 export function loadDraft(
   draftType: DraftType,
   id: string,
-): ShoppingRecordDraft | null {
+): CompanionDraft | null {
   if (!isBrowser()) return null;
   try {
     const raw = localStorage.getItem(draftStorageKey(draftType, id));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    if (!isShoppingRecordDraft(parsed)) {
+    if (!isCompanionDraft(parsed) || parsed.draftType !== draftType) {
       localStorage.removeItem(draftStorageKey(draftType, id));
       return null;
     }

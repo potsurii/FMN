@@ -41,8 +41,12 @@ export async function searchOwnItems(
   supabase: SupabaseClient,
   userId: string,
   query: OwnHistoryQuery,
+  options?: { limit?: number },
 ): Promise<OwnHistorySearchResult> {
-  const limit = OWN_HISTORY_LIMIT;
+  const limit =
+    typeof options?.limit === "number" && options.limit > 0
+      ? Math.min(options.limit, 500)
+      : OWN_HISTORY_LIMIT;
   const fetchLimit = limit + 1;
 
   let q = supabase

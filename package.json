@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test:batch1": "npx --yes tsx scripts/batch1-verify.ts",
     "test:batch2a": "npx --yes tsx scripts/batch2a-verify.ts",
+    "test:batch2b": "npx --yes tsx scripts/batch2b-verify.ts",
     "phase3:check": "npx --yes tsx scripts/phase3-boundary-check.ts",
     "architecture:scan": "npx --yes tsx scripts/fmn-architecture-scan.ts"
   },
