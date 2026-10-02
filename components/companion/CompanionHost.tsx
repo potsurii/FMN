@@ -6,6 +6,7 @@ import { Button } from "@/components/foundation/Button";
 import { Textarea } from "@/components/foundation/Textarea";
 import { CompanionLauncher } from "@/components/companion/CompanionLauncher";
 import { CompanionSurface } from "@/components/companion/CompanionSurface";
+import { HistoryResultSection } from "@/components/companion/HistoryResultSection";
 import {
   RecordDraftReview,
   type TripOption,
@@ -31,16 +32,25 @@ import type {
   ShoppingRecordDraft,
   TaskState,
 } from "@/lib/companion/types";
+import type { ItemWithDisplay } from "@/lib/items/types";
 import { confirmShoppingRecordWrite } from "@/lib/workflows/record-input/confirm-write";
 import {
   buildShoppingRecordDraftFromText,
   getShoppingRecordDraftMissing,
 } from "@/lib/workflows/record-input/text-parse";
+import { classifyCompanionIntent } from "@/lib/workflows/historical-search/parse-query";
+import { runOwnHistorySearch } from "@/lib/workflows/historical-search/run-search";
 
 type ConversationMessage = {
   id: string;
   role: "user" | "assistant" | "system";
   text: string;
+};
+
+type HistoryView = {
+  summary: string;
+  items: ItemWithDisplay[];
+  hasMore: boolean;
 };
 
 type CompanionHostProps = {
@@ -49,7 +59,7 @@ type CompanionHostProps = {
 };
 
 /**
- * Companion Shell + F3-01 text Confirm path.
+ * Companion Shell + F3-01 text Confirm path + F3-02 own-history (read-only).
  * Conversation is in-memory only; Draft/Task use localStorage.
  */
 export function CompanionHost({ context, trips }: CompanionHostProps) {
@@ -61,7 +71,9 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   const [draft, setDraft] = useState<ShoppingRecordDraft | null>(null);
   const [task, setTask] = useState<TaskState | null>(null);
   const [writing, setWriting] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [writeError, setWriteError] = useState<string | null>(null);
+  const [historyView, setHistoryView] = useState<HistoryView | null>(null);
 
   const contextLabel = useMemo(() => {
     if (context.entry === "trip" && context.tripName) {
@@ -96,6 +108,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     setMessages([]);
     setInput("");
     setWriteError(null);
+    setHistoryView(null);
   }
 
   function handleClose() {
@@ -116,6 +129,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   }
 
   function startDraftFromText(raw: string) {
+    setHistoryView(null);
     const trip =
       context.tripId != null
         ? trips.find((t) => t.id === context.tripId) ?? null
@@ -148,6 +162,42 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       "assistant",
       "已整理为待确认草稿（规则/手动辅助，非 LLM 语义理解）。请核对并补齐必填项后，点击「确认写入正式记录」。",
     );
+  }
+
+  async function runHistorySearch(raw: string) {
+    setSearching(true);
+    setHistoryView(null);
+    try {
+      const result = await runOwnHistorySearch({
+        text: raw,
+        defaultTripId: context.entry === "trip" ? context.tripId : null,
+      });
+
+      if (!result.ok) {
+        appendMessage(
+          result.kind === "blocked" ? "system" : "assistant",
+          result.error,
+        );
+        return;
+      }
+
+      setHistoryView({
+        summary: result.summary,
+        items: result.items,
+        hasMore: result.hasMore,
+      });
+      appendMessage(
+        "assistant",
+        result.items.length === 0
+          ? `未找到符合「${result.summary}」的记录。`
+          : `已找到 ${result.items.length} 条记录（只读，非草稿）。`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "查询失败，请重试";
+      appendMessage("system", msg);
+    } finally {
+      setSearching(false);
+    }
   }
 
   async function runFormalWrite(from: "button" | "intent") {
@@ -233,7 +283,30 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       return;
     }
 
-    startDraftFromText(raw);
+    const intent = classifyCompanionIntent(raw);
+
+    if (intent === "ambiguous") {
+      appendMessage(
+        "assistant",
+        "无法判断是「录入购物记录」还是「查询历史记录」。请说明要录入还是查询（例如：商品名称：… 价格 …，或：查 Anessa / 查询我的记录）。",
+      );
+      return;
+    }
+
+    if (intent === "history") {
+      void runHistorySearch(raw);
+      return;
+    }
+
+    if (intent === "record") {
+      startDraftFromText(raw);
+      return;
+    }
+
+    appendMessage(
+      "assistant",
+      "请说明意图：录入可写「商品名称：…，价格 …」；查询可写「查 Anessa」「买过防晒吗」或「查询我的记录」。",
+    );
   }
 
   function handleCancelDraft() {
@@ -263,6 +336,8 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     }
   }
 
+  const busy = writing || searching;
+
   return (
     <>
       <CompanionLauncher
@@ -275,8 +350,8 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
             appendMessage(
               "assistant",
               context.entry === "trip"
-                ? "可以描述已购买的商品。我会整理成草稿供你确认；默认使用当前旅行，你仍可查询或改选其他旅行。"
-                : "可以描述已购买的商品。全局入口不会自动选择旅行；正式写入前请明确选择所属旅行。",
+                ? "可以描述已购买的商品，或查询历史记录。录入会整理成草稿供确认；查询只读、不会写入。默认旅行可改选。"
+                : "可以描述已购买的商品，或查询自己的历史记录。全局入口不会自动选择旅行；正式写入前请明确选择所属旅行。",
             );
           }
         }}
@@ -308,6 +383,14 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
             ))}
           </div>
 
+          {historyView && !draft ? (
+            <HistoryResultSection
+              summary={historyView.summary}
+              items={historyView.items}
+              hasMore={historyView.hasMore}
+            />
+          ) : null}
+
           {draft ? (
             <RecordDraftReview
               draft={draft}
@@ -324,22 +407,22 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="例如：商品名称：Anessa，价格 450 THB"
-              disabled={writing}
+              placeholder="录入：商品名称：Anessa，价格 450 THB；或查询：查 Anessa / 查询我的记录"
+              disabled={busy}
               rows={3}
             />
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
                 variant="secondary"
-                disabled={writing || !input.trim()}
+                disabled={busy || !input.trim()}
                 onClick={handleSubmitText}
               >
-                发送
+                {searching ? "查询中…" : "发送"}
               </Button>
             </div>
             <p className="text-xs text-[var(--color-ink-muted)]">
-              当前为规则/手动模式（L-06 未关闭，未接入 LLM）。仅「确认写入正式记录」或明确的保存指令会触发正式写入。
+              规则/手动模式（L-06 未关闭）。历史查询只读；仅「确认写入正式记录」或明确保存指令会触发正式写入。
             </p>
           </div>
         </div>

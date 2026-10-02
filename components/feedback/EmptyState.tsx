@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 type EmptyStateProps = {
-  variant?: "NoTrips" | "NoItems" | "NoTodoItems";
+  variant?: "NoTrips" | "NoItems" | "NoTodoItems" | "NoHistoryMatches";
   className?: string;
   action?: ReactNode;
 };
@@ -24,11 +24,17 @@ export function EmptyState({
             title: "还没有购物代办",
             body: "记下准备购买的商品，出行时按清单采购。",
           }
-        : {
-            stamp: "EMPTY PAGE",
-            title: "还没有商品记录",
-            body: "添加商品后，购买记录会出现在这里。",
-          };
+        : variant === "NoHistoryMatches"
+          ? {
+              stamp: "NO MATCH",
+              title: "没有找到符合条件的记录",
+              body: "请调整商品名、分类、地点、日期或旅行后再试。不会虚构结果。",
+            }
+          : {
+              stamp: "EMPTY PAGE",
+              title: "还没有商品记录",
+              body: "添加商品后，购买记录会出现在这里。",
+            };
 
   return (
     <div
