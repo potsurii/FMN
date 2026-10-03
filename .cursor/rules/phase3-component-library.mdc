@@ -1,5 +1,5 @@
 ---
-description: "Non-negotiable component architecture and reuse rules for Forget Me Not Phase 3."
+description: "Non-negotiable component architecture and reuse boundaries for Forget Me Not Phase 3."
 globs:
   - "components/**/*.tsx"
 alwaysApply: false
@@ -9,11 +9,11 @@ alwaysApply: false
 
 ## 1. Source of Truth
 
-For Phase 3 component work, use:
+Component rules:
 
 `docs/phase3-component-library.md`
 
-Inherited component foundation:
+Inherited foundation:
 
 `docs/component-library.md`
 
@@ -25,103 +25,37 @@ Product rules:
 
 `docs/phase3-product.md`
 
+Locked decisions:
+
+`docs/phase3-decisions.md`
+
 Do not duplicate detailed component specifications here.
 
 ---
 
 ## 2. Component Architecture
 
-Use:
-
 ```text
-Foundation
-↓
-Composite
-↓
-Business Component
-↓
-Page Module
-↓
-Page
+Foundation → Composite → Business Component → Page Module → Page
 ```
-
-Components become more product-specific as they move downward.
 
 Do not place page-level business logic in lower-level components.
 
 ---
 
-## 3. Reuse Before Create
+## 3. Hard Rules
 
-Before creating a component:
-
-1. Check `docs/phase3-component-library.md`.
-2. Check `docs/component-library.md`.
-3. Search the existing codebase.
-4. Reuse or compose an existing component when possible.
-
-Preferred order:
+### Rule 1 — Reuse Before Create
 
 ```text
-Reuse
-↓
-Compose
-↓
-Variant
-↓
-New Component
+Reuse → Compose → Variant → New Component
 ```
 
 Do not create duplicate components with different names.
 
----
+### Rule 2 — No AI-Specific Components
 
-## 4. Phase 3 Component Scope
-
-Phase 3 may introduce components for:
-
-* Companion Surface
-* Conversation
-* Input
-* Processing
-* Results
-* Draft
-* Confirmation
-* Candidate Selection
-* Task Progress
-
-Use the Phase 3 Component Library for the exact component list and specifications.
-
-Documentation does not require every component to be implemented immediately.
-
----
-
-## 5. Existing FMN Components
-
-Reuse established FMN components whenever they reasonably support the requirement.
-
-Examples:
-
-```text
-Button
-Input
-Modal
-ConfirmDialog
-Toast
-
-ItemCard
-TripCard
-TravelStamp
-Price
-Location
-CategoryTag
-
-SearchResultCard
-ShoppingTodoCard
-VisibilityBadge
-```
-
-Do not create parallel AI-specific components such as:
+Do not create:
 
 ```text
 AIButton
@@ -129,15 +63,12 @@ AIInput
 AIItemCard
 AITripCard
 AIConfirmDialog
+AIPrice
 ```
 
 unless the new component has a genuinely different responsibility.
 
----
-
-## 6. Component Responsibility & Boundaries
-
-Each component should have one clear, stable responsibility.
+### Rule 3 — Component Responsibility Boundary
 
 Components may own:
 
@@ -146,10 +77,6 @@ Components may own:
 * meaningful local state
 * meaningful variants
 
-Create a new component only when it has a stable responsibility, meaningful reuse / behavior / states, or represents a stable product concept.
-
-Do not create a component merely to split a few lines of markup.
-
 Components must not own:
 
 * Agent planning
@@ -157,45 +84,10 @@ Components must not own:
 * business-rule decisions
 * permission decisions
 * database persistence
-* unrelated page logic
 * product decisions
+* unrelated page logic
 
----
-
-## 7. Companion Component Boundary
-
-Companion Components are presentation and interaction surfaces.
-
-They may display:
-
-* user messages
-* assistant responses
-* structured results
-* Drafts
-* confirmations
-* task progress
-
-They must not directly implement:
-
-* Agent Loop
-* Tool Calling
-* Workflow execution
-* formal business-data writes
-
----
-
-## 8. Logic Separation
-
-Keep these concerns separate:
-
-```text
-Presentation
-Business Logic
-Workflow
-Data
-```
-
-Preferred flow:
+### Rule 4 — Logic Separation
 
 ```text
 UI Component
@@ -213,49 +105,21 @@ Do not move business rules into UI components.
 
 Do not move UI concerns into Workflow definitions.
 
----
+### Rule 5 — Variant vs State
 
-## 9. Variant vs State
-
-Use:
-
-> **Variant** for different stable purposes or presentation types.
-
-Use:
-
-> **State** for the component's current condition.
-
-Example:
-
-```text
 Variant:
-Global / Trip / Compact
+
+> 不同稳定用途或展示类型。
 
 State:
-Default / Loading / Processing / Disabled
-```
 
-Do not create separate components for every Variant × State combination.
+> 当前状态。
 
----
+不要创建 Variant × State 的独立组件。
 
-## 10. Public / Private & Business Rules
-
-Public / Private behavior is defined by Product Definition.
-
-Components should display or trigger the relevant state, but must not decide whether the operation is valid.
+### Rule 6 — Public / Private via Variant
 
 Prefer:
-
-```text
-Existing Component
-+
-Variant / State
-```
-
-rather than creating separate public/private component families.
-
-For example, prefer:
 
 ```text
 TripCard
@@ -272,83 +136,185 @@ PublicItemCard
 PrivateItemCard
 ```
 
-unless their responsibilities become genuinely different.
+Components display state; they do not decide validity.
 
----
+### Rule 7 — Draft / Confirmation
 
-## 11. Draft / Confirmation Components
-
-Phase 3 Draft and Confirmation components must preserve:
+Preserve:
 
 ```text
-Draft
-↓
-Review
-↓
-Confirm
-↓
-Formal Write
+Draft → Review → Confirm → Formal Write
 ```
 
-Components may present and edit Drafts.
+Components must not silently persist formal business data.
 
-They must not silently persist formal business data.
+### Rule 8 — Explicit Confirm Semantics
 
----
+Formal write requires an explicit Confirm Action.
 
-## 12. Result Components
+NOT Confirm:
 
-Prefer existing FMN business components for Companion results.
+* passive viewing
+* scrolling
+* closing Companion
+* "看起来不错" / "好的" / "嗯" / "继续"
 
-Examples:
+Valid Confirm:
+
+* explicit UI Confirm action
+* explicit natural-language confirmation intent
+
+### Rule 9 — Companion Component Boundary
+
+Companion Components may display:
+
+* user messages
+* assistant responses
+* structured results
+* Drafts
+* confirmations
+* task progress
+
+They must not implement:
+
+* Agent Loop
+* Tool Calling
+* Workflow execution
+* formal business-data writes
+
+### Rule 10 — Result & Candidate Reuse
+
+Prefer existing FMN components:
 
 ```text
-Record Result
-→ existing Item / Record component
-
-Trip Result
-→ TripCard
-
-Search Result
-→ SearchResultCard
-
-Todo Result
-→ ShoppingTodoCard
-
-Statistics
-→ Stat / Table components
+Record Result  → Item / Record
+Trip Result    → TripCard
+Search Result  → SearchResultCard
+Todo Result    → ShoppingTodoCard
+Statistics     → Stat / Table
 ```
 
-Do not create duplicate result-card systems without a genuine new responsibility.
+Do not create parallel result-card systems.
 
----
+### Rule 11 — Todo Component Overrides
 
-## 13. Candidate Components
+Phase 3 overrides:
 
-When multiple Products, Trips, or other objects require selection:
+* ShoppingTodoCard
+* ShoppingTodoButton
+* PurchaseConversion
 
-> reuse existing Card / Search components when practical.
+Use:
 
-Create a dedicated Candidate component only when the selection behavior or presentation has a stable independent responsibility.
+```text
+Product
+reference_price
+reference_currency
+reference_location
+Quantity
+Category
+Note
+Todo Status
+```
 
----
+Do not use:
 
-## 14. Page Composition
+```text
+ReferencePrice
+ReferenceLocation
+SourceInfo
+```
 
-Pages should primarily:
+ShoppingTodoButton must not bypass Formal Todo Requirements.
 
-* compose existing components
-* connect data
-* coordinate page-level state
-* coordinate page-level actions
+PurchaseConversion must preserve Quantity.
 
-Do not rebuild shared UI directly inside pages.
+PurchaseConversion location inheritance:
 
----
+```text
+reference_location（计划购买地点）
+        ↓
+作为建议值预填
+        ↓
+用户确认 / 修改
+        ↓
+purchase_location（实际购买地点）
+```
 
-## 15. Naming
+### Rule 12 — Todo Required Fields
 
-Use clear PascalCase names that describe responsibility.
+Phase 3 New Todo Draft must contain:
+
+* Trip
+* Product
+* reference_price
+* reference_currency
+* reference_location
+
+缺任何一个：
+
+> 不进入 Confirm。
+
+Validation is enforced by Workflow / Application Layer.
+
+Components only reflect validation state.
+
+### Rule 13 — Legacy Todo Exception
+
+Legacy Todo：
+
+* 不强制补齐
+* 可 View / Delete / Convert
+* 转换时按 Phase 3 Conversion Rules 处理
+
+不得因 Phase 3 Required Fields 对 Legacy Todo：
+
+* 显示错误状态
+* 强制补齐
+* 阻塞转换
+
+### Rule 14 — BatchDraft Boundary
+
+BatchDraft 组织多个 DraftCard + Unified Actions。
+
+任一对象不完整时：
+
+> 整个最终写入流程暂停。
+
+不得部分正式写入。
+
+Transaction boundary 由 Workflow / Application Layer 保证，Component 不负责实现 Transaction。
+
+### Rule 15 — reference_location Semantics
+
+```text
+reference_location = 计划购买地点
+purchase_location  = 实际购买地点
+```
+
+不得引入第二个独立字段。
+
+Component 只负责展示与触发操作。
+
+### Rule 16 — Receipt Component Boundary
+
+ReceiptInput / RecordDraft：
+
+* Receipt Image 是共享输入，可关联多个 Record
+* 未 Confirm 的 Receipt Image 属于 Temporary Receipt Asset
+* Temporary Receipt 不创建正式 receipts record
+* Confirm 后由 Workflow 创建 receipts + receipt_items
+
+Component 不负责：
+
+* OCR
+* Product Splitting
+* Receipt → Item 关联写入
+* Temporary / Formal Receipt 生命周期管理
+
+### Rule 17 — Naming
+
+Use clear PascalCase names.
 
 Prefer:
 
@@ -362,66 +328,40 @@ TaskProgress
 CandidateSelector
 ```
 
-Avoid vague, temporary, page-specific, country-specific, or visual-style-specific names such as:
+Avoid:
 
 ```text
-Box
-Block
-Panel1
-ComponentA
-ThailandTripCard
-PinkProductCard
+Box / Block / Panel1 / ComponentA
+AIThing
+ThailandTripCard / PinkProductCard
 ```
 
-Avoid creating separate names for what should be Variants or States.
-
----
-
-## 16. State Coverage
+### Rule 18 — State Coverage
 
 Define only states that are genuinely required.
 
-Common Phase 3 states include:
+Common states:
 
 ```text
-Default
-Hover
-Pressed
-Focus
-Loading
-Processing
-Waiting
-Disabled
-Error
-Selected
-Completed
-Cancelled
+Default / Hover / Pressed / Focus
+Loading / Processing / Waiting / Disabled
+Error / Selected / Completed / Cancelled
 ```
 
 Do not add states merely for completeness.
 
----
+### Rule 19 — Future Components
 
-## 17. Future Components
-
-Future components may be documented in:
-
-`docs/phase3-component-library.md`
-
-but:
-
-> **Documentation does not authorize implementation.**
+Documentation does not authorize implementation.
 
 Only implement components required by the current Phase 3 task.
 
----
+### Rule 20 — Change Discipline
 
-## 18. Change Discipline
+Before modifying a shared component:
 
-When modifying a shared component:
-
-* inspect current usages first
-* preserve valid existing behavior
+* inspect current usages
+* preserve valid behavior
 * prefer compatible changes
 * avoid unrelated refactoring
 * update affected usages when necessary
@@ -430,9 +370,7 @@ Do not rewrite a shared component merely to simplify one page.
 
 ---
 
-## 19. Product / Design / Component Boundary
-
-Respect:
+## 4. Product / Design / Component Boundary
 
 ```text
 phase3-product.md
@@ -442,23 +380,13 @@ phase3-design-system.md
 phase3-component-library.md
 ```
 
-Product defines:
+Product → What.
 
-> what is required.
+Design → How it looks.
 
-Design defines:
-
-> how it should look and behave visually.
-
-Component Library defines:
-
-> what reusable components express that design.
+Component Library → Which reusable components.
 
 Do not use component convenience to change product behavior.
-
-If component design requires a new product behavior:
-
-> stop and resolve the product decision first.
 
 ---
 

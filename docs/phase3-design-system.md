@@ -254,6 +254,20 @@ Context：
 Context = Current Trip
 ```
 
+### Trip Destination 显示
+
+Trip Detail：显示 destination；未填写时显示"未填写"；不视为错误状态。
+
+Trip Form：新增 Destination 字段（必填）；纯文本输入；不做自动补全。
+
+### "最近" 候选选择（L-03）
+
+Context 无效时列出候选 Trip：
+  - start_date 倒序
+  - 最多 5 个
+  - 复用 CandidateSelector 视觉模式
+用户选择后直接展示查询结果
+
 ---
 
 ## 7.5 Surface Variants
@@ -1102,7 +1116,6 @@ Related documents:
 * `docs/phase3-component-library.md`
 * `docs/phase3-decisions.md`
 * `docs/design-system.md`
-```
 
 ---
 

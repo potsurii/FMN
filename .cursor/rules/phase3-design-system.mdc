@@ -203,6 +203,14 @@ Quantity        18
 
 不得使用警告色 / 错误色。
 
+### Rule 15 — Destination Display
+
+Trip Detail 显示 destination；
+
+未填写时显示"未填写"；
+
+不视为错误状态。
+
 ---
 
 ## 4. Design Conflict Rule

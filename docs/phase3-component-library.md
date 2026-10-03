@@ -1129,6 +1129,13 @@ Confirm 是正式写入的前置条件。
 * Confirming
 * Disabled
 
+### CandidateSelector — Trip Variant（L-03）
+
+用于"最近"语义的 Trip 候选选择：
+  - 复用现有 CandidateSelector
+  - 最多 5 个候选
+  - 按 start_date 倒序
+
 ---
 
 # 39. CandidateCard
@@ -1871,7 +1878,6 @@ The authoritative Phase 3 decision log remains:
 `docs/phase3-decisions.md`
 
 Phase 3 component specifications are defined in this document.
-```
 
 ---
 

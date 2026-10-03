@@ -863,7 +863,6 @@ Result Formatting
 可以理解：
 
 * Product
-* Brand
 * Category
 * Trip
 * Destination
@@ -873,27 +872,43 @@ Result Formatting
 * Price
 * Currency
 
+**Brand 当前不支持**（L-01 明确 BLOCKED）。
+
+### Destination 查询
+
+```text
+匹配规则：LOWER(trips.destination) LIKE LOWER(%input%)
+约束：大小写不敏感 / 包含匹配 / 不跨语言 / 不做模糊匹配
+     destination 为 NULL 的 Trip 不匹配
+```
+
 ---
 
 ## 12.4 Relative Time Resolution
 
-例如：
-
-> 上次去日本
-
-处理为：
+### "上次去日本"
 
 ```text
-Japan Trips
-↓
-Sort by Travel Time
-↓
-Latest Japan Trip
+Japan Trips → Sort by Travel Time → Latest Japan Trip
 ```
 
-而不是：
+而非 "Latest Japanese shopping record"。
 
-> Latest Japanese shopping record
+### "最近"
+
+```text
+"最近" ≠ 时间窗口
+"最近" = 用户最近一次已开始旅行（有 item 记录）的 Shopping Records
+
+实现：
+  - Context 有效（Trip Entry + Current Trip 已开始且有 item 记录）
+      → 直接用 Current Trip
+  - Context 无效
+      → 列出候选 Trip（start_date 倒序，最多 5，过滤已开始且有 item）
+      → 用户选择 = 直接执行
+  - 单一候选 → 直接用
+  - 无候选 → 告知"没有创建过有 record 的旅行"
+```
 
 ---
 
@@ -990,10 +1005,12 @@ Format Result
 * Multiple Trips
 * Time Range
 * Product
-* Brand
 * Category
+* Destination（ILIKE 包含匹配）
 * Purchase Location
 * Combined Conditions
+
+**Brand 当前不支持**（L-01 明确 BLOCKED）。
 
 ---
 
@@ -1004,7 +1021,6 @@ Format Result
 * Record Count
 * Quantity
 * Total Amount
-* Brand Count
 * Category Count
 * Trip Count
 * Average Price
@@ -1016,6 +1032,8 @@ Record Count
 ≠
 Quantity
 ```
+
+**Brand Count 当前不支持**（L-01 明确 BLOCKED）。
 
 ---
 
@@ -1378,51 +1396,57 @@ Actual Paid Price、Purchase Date 等 Record-specific 字段仍必须遵守 F3-0
 
 ## 15.1 Detection Target
 
-创建 Todo 前：
+创建 Todo 前，检查**目标 Trip 内**的现有 Todo。
 
-> 检查目标 Trip 的现有 Todo。
-
-比较：
+比较字段（AND 逻辑）：
 
 ```text
-Product
-reference_price
-reference_location
+① Product                              精确字符串
+② reference_price + reference_currency 数值 + 币种整体
+③ reference_location                   精确字符串
 ```
 
----
+## 15.2 判定
 
-## 15.2 Same Core Information
+```text
+三个全相同 → 疑似重复
+任一不同   → 不算重复
+```
 
-如果三者完全相同：
+## 15.3 相等判定
 
-> 可以考虑合并 Quantity。
+```text
+精确相等
+不做规范化 / 模糊匹配
+```
 
-但是：
+## 15.4 发现疑似重复
 
-> 不自动执行。
+```text
+显示"发现相似 Todo"
+用户选择：新建 / 使用已有 / 修改已有
+不自动合并
+```
 
----
+## 15.5 三字段完全相同时
 
-## 15.3 Different Price / Location
+```text
+提示"是否合并 Quantity"
+用户决定
+不自动合并
+```
 
-不同 reference_price 或不同 reference_location：
+## 15.6 不参与比较
 
-> 不能合并。
+```text
+Quantity / Note / Category / Product Image / Target Purchase Date
+```
 
----
+## 15.7 跨 Trip
 
-## 15.4 Similar Todo
-
-如果发现相似 Todo：
-
-> 先向用户展示已有信息。
-
-允许用户决定：
-
-* 使用原 Todo
-* 修改原 Todo
-* 创建新 Todo
+```text
+不比较跨 Trip 的 Todo
+```
 
 ---
 
@@ -2427,6 +2451,5 @@ Current clarifications:
 * Draft is not a Product Entity, but Draft still requires business validation by Workflow / Application Layer before Confirm.
 * Legacy Todo and Phase 3 New Todo are separated; DB NOT NULL is not applied to `shopping_todos` because of Legacy data.
 * Architecture does not redefine Product requirements.
-```
 
 ---

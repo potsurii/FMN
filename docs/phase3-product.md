@@ -94,6 +94,21 @@ Phase 3 在此基础上，为部分业务增加：
 
 Trip 仍然是 Shopping Record 与 Shopping Todo 的主要业务容器。
 
+### Trip Destination（Phase 3 新增）
+
+```text
+字段：trips.destination（text，NULL 允许）
+单一 destination
+纯自由文本（无自动补全）
+
+双轨制：
+  新 Trip：应用层必填
+  历史 Trip：保持 NULL，不强制补齐
+
+查询：
+  LOWER(destination) LIKE LOWER(%input%)
+```
+
 ---
 
 ## 2.4 Public / Private
@@ -716,7 +731,6 @@ F3-02 是：
 支持：
 
 * Product
-* Brand
 * Category
 * Trip
 * Destination
@@ -726,7 +740,23 @@ F3-02 是：
 * Price
 * Currency
 
+**Brand 当前不支持**（L-01 明确 BLOCKED）。
+
 支持多条件组合。
+
+### Destination 查询
+
+```text
+匹配规则：
+  LOWER(trips.destination) LIKE LOWER(%input%)
+
+约束：
+  - 大小写不敏感
+  - 包含匹配
+  - 不跨语言（"日本" ≠ "Japan"）
+  - 不做模糊匹配
+  - destination 为 NULL 的历史 Trip 不匹配
+```
 
 ---
 
@@ -743,6 +773,23 @@ F3-02 是：
 * 第一次去日本
 * 之前
 * 前几次旅行
+
+### "最近" 的语义
+
+```text
+"最近" ≠ 时间窗口（7 / 30 / 90 天）
+
+"最近" = 用户最近一次已开始旅行（有 item 记录）的 Shopping Records
+
+实现：
+  - Context 有效（Trip Entry + Current Trip 已开始且有 item 记录）
+      → 直接用 Current Trip 查询
+  - Context 无效（Global Entry / Trip Entry + 未出行 / Trip Entry + 无记录）
+      → 列出候选 Trip（start_date 倒序，最多 5 个，过滤：已开始且有 item 记录）
+      → 用户选择 = 直接执行查询
+  - 单一候选 → 直接用，不列候选
+  - 无候选 → 告知"没有创建过有 record 的旅行"
+```
 
 ---
 
@@ -883,10 +930,11 @@ F3-03 = 整理 / 分析
 * 多个 Trip
 * 时间范围
 * Product
-* Brand
 * Category
 * Purchase Location
 * 多条件组合
+
+**Brand 当前不支持**（L-01 明确 BLOCKED）— 不可作为 Data Scope 维度。
 
 ---
 
@@ -895,7 +943,6 @@ F3-03 = 整理 / 分析
 支持：
 
 * Product
-* Brand
 * Category
 * Trip
 * Destination
@@ -904,16 +951,21 @@ F3-03 = 整理 / 分析
 * Price
 * Currency
 
+**Brand 当前不支持**（L-01 明确 BLOCKED）。
+
+Destination 与 F3-02 使用相同的匹配规则。
+
 ---
 
 # 20. F3-03 Group
 
 支持：
 
-* Brand
 * Category
 * Trip
 * Purchase Date
+
+**Brand 按维度分组当前不支持**（L-01 明确 BLOCKED）。
 
 ---
 
@@ -938,10 +990,11 @@ F3-03 = 整理 / 分析
 * Record Count
 * Quantity
 * Total Amount
-* Brand Count
 * Category Count
 * Trip Count
 * Average Price
+
+**Brand Count 当前不支持**（L-01 明确 BLOCKED）。
 
 ---
 
@@ -1480,46 +1533,47 @@ Phase 3 不引入第二个独立的 "Target Purchase Location" 字段。
 
 # 39. F3-04 Duplicate
 
-> **注意：本节为 F3-04 Duplicate Detection 的暂定行为。**
->
-> **最终 Duplicate Detection equality 规则以 `docs/phase3-decisions.md` 中 L-02 关闭后的 Decision Log 为准。**
->
-> **在 L-02 关闭前：**
->
-> * 不得将本节视为已锁定的最终业务规则
-> * 不得据此提前固化不可逆的数据模型或实现约束
+创建 Todo 前：检查**目标 Trip 内**现有 Shopping Todo。
 
-创建 Todo 前：
+## 参与比较的 3 个字段（AND 逻辑）
 
-> 检查目标 Trip 中现有的 Shopping Todo。
+| # | 字段 | 相等判定 |
+| :--- | :--- | :--- |
+| ① | Product | 精确字符串 |
+| ② | reference_price + reference_currency | 数值 + 币种整体 |
+| ③ | reference_location | 精确字符串 |
 
-暂定核心比较：
+判定：
 
 ```text
-Product
-reference_price
-reference_location
+三个全相同 → 疑似重复
+任一不同   → 不算重复
 ```
 
-如果三者完全相同：
+## 相等判定
 
-> 可以考虑增加 Quantity。
+```text
+精确相等
+不做规范化 / 模糊匹配
+```
 
-但：
+## 不参与比较
 
-> 不自动执行。
+```text
+Quantity / Note / Category / Product Image / Target Purchase Date
+```
 
-用户仍然需要能够决定。
+## 跨 Trip
 
-如果 reference_price 不同或 reference_location 不同：
-
-> 不能合并。
+```text
+不比较跨 Trip 的 Todo
+```
 
 ---
 
 # 40. F3-04 Duplicate Interaction
 
-> **注意：本节为暂定交互，受 §39 的 L-02 未关闭说明约束。**
+## 发现疑似重复
 
 例如已有：
 
@@ -1531,19 +1585,23 @@ Anessa
 
 用户再次说：
 
-> “帮我加一个 Anessa。”
+> "帮我加一个 Anessa。"
 
-Agent 应告知已有 Todo，并让用户决定：
+Agent 应显示"发现相似 Todo"，让用户决定：
 
-* 使用原来的 Todo
-* 修改原来的 Todo
-* 新建一个 Todo
+* 新建
+* 使用已有
+* 修改已有
 
-不得自动合并。
+不自动合并。
 
-如果只是 Note 不同：
+## 三字段完全相同时
 
-> Note 不作为核心合并阻断条件。
+提示"是否合并 Quantity"，用户决定，不自动合并。
+
+## Note 不同
+
+不作为核心合并阻断条件。
 
 ---
 
@@ -2321,6 +2379,5 @@ Phase 3 component rules are defined in:
 Phase 3 decision log is defined in:
 
 `docs/phase3-decisions.md`
-```
 
 ---

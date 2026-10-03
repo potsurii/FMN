@@ -115,6 +115,8 @@ When required information is missing:
 
 Do not replace uncertainty with assumptions.
 
+Brand stays BLOCKED in Phase 3: never treat it as a supported capability and never infer it from `product_name` / `notes` / `location`.
+
 Todo field names and semantics:
 
 > See `docs/phase3-product.md` and `docs/phase3-decisions.md`.

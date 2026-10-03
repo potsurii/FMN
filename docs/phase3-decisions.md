@@ -1,6 +1,6 @@
 # Phase 3 Decision Log
 
-**Version:** 1.4
+**Version:** 1.5
 **Created:** 2026-10-01
 **Status:** Core Blocking Decisions Closed
 **Parent Document:** Phase 3 Pre-Coding Decision Lock v1.1
@@ -1355,84 +1355,265 @@ Product Owner
 
 ## L-01 Brand / Destination 数据模型
 
-**Status:** Later
+**Status:** Closed
+
 **Authority:** Product Owner
 
-### 阻断范围
+### Decision
 
 ```text
-不阻断 Step 1
-阻断 F3-02 最终实现
+Brand:       保持 BLOCKED
+
+Destination:
+  字段:       trips.destination
+  类型:       text
+  NULL:       允许
+  数量:       单一
+  形态:       纯自由文本（无自动补全）
+  必填性:     新 Trip 必填（应用层）；历史 Trip NULL
+  可编辑:     创建后可编辑
+  查询:       LOWER(destination) LIKE LOWER(%input%)
+  Migration:  ALTER TABLE trips ADD COLUMN destination text
+              （无 NOT NULL，无回填）
 ```
 
-### 需要决定
+### Brand
 
-```text
-Product 查询条件含 Brand / Destination
-DB 无对应列
-是否新增字段？或禁止该条件？或从 name / location 启发式？
+* 本 Phase 不新增 `brand` 字段
+* 不从 `product_name` / `notes` / `location` 推导 Brand
+* F3-02 / F3-03 遇到明确的 Brand 查询意图时，返回 unsupported
+* 不维护 Brand 词表
+* 不引入通用品牌启发式
+* 不得将商品名称、购买地点、分类或备注中的内容推断为 Brand
+
+### Destination
+
+**字段定义**
+
+* 字段：`trips.destination`
+* 类型：`text`
+* 允许 `NULL`
+* 单一 Destination，不支持多目的地
+
+**填写规则**
+
+* 新 Trip：应用层必填，由 TripForm 校验
+* 历史 Trip：保持 `NULL`，不强制补齐
+* 数据库层允许 `NULL`，不增加 `NOT NULL` 约束
+
+**形态**
+
+* 纯自由文本
+* 不提供自动补全
+* 不使用预定义列表
+* 不做跨语言映射
+
+**编辑**
+
+* Destination 创建后可编辑
+* 不强制补齐历史 Trip 的 Destination
+
+**查询**
+
+* 使用 `LOWER(destination) LIKE LOWER(%input%)`
+* 大小写不敏感
+* 包含匹配
+* 不跨语言映射（例如“日本” ≠ “Japan”）
+* 不做模糊匹配
+* `NULL` 不匹配
+
+**Migration**
+
+```sql
+ALTER TABLE trips ADD COLUMN destination text;
 ```
 
-### 关闭时机
+* 不增加 `NOT NULL`
+* 不进行历史数据回填
 
-```text
-F3-02 接入前
-```
+**UI**
+
+* TripForm 新增 Destination 字段，应用层必填
+* 使用普通文本输入，不提供自动补全
+* Trip Detail 显示 Destination
+* 历史 Trip 的 Destination 为空时，显示“未填写”
+
+### Impact
+
+* F3-02 / F3-03 支持 Destination 过滤
+* Destination 查询基于 `trips.destination`
+* Brand 在本 Phase 保持 BLOCKED
+* F3-02 / F3-03 不支持 Brand 过滤、分组或聚合
+
+### Docs Synced
+
+* [x] docs/phase3-decisions.md
+* [x] docs/phase3-product.md
+* [x] docs/phase3-intelligence-architecture.md
+* [x] docs/phase3-design-system.md
+* [x] docs/phase3-component-library.md（N/A：TripForm 不属于 Companion Component Library；规则由 product §2.3 + design-system §7.4 承载）
+
+### Closed By
+
+Product Owner
+
+### Closed At
+
+2026-10-02
 
 ---
 
 ## L-02 Duplicate Detection 相等规则
 
-**Status:** Later
+**Status:** Closed
+
 **Authority:** Product Owner
 
-### 阻断范围
+### Scope
+
+* 仅检查同一 Trip 内的 Shopping Todo
+* 不检查跨 Trip Todo
+* Duplicate Detection 仅用于提示，不得自动合并
+
+### Exact Equality Rules
+
+以下三个字段必须同时完全相同，才判定为 Suspected Duplicate：
+
+1. **Product**：精确字符串相等
+2. **Reference Price**：`reference_price` 与 `reference_currency` 组合比较，数值和货币必须同时相同
+3. **Reference Location**：精确字符串相等
 
 ```text
-不阻断 Step 1
-阻断 F3-04 最终实现
+Product
+  + reference_price
+  + reference_currency
+  + reference_location
+
+全部精确相同
+  → Suspected Duplicate
+
+任意一个不同
+  → Not Duplicate
 ```
 
-### 需要决定
+### Equality Constraints
 
-```text
-Duplicate Product 相等规则：
-  精确匹配？规范化匹配？
-  Currency 是否参与？
-```
+* 使用精确相等比较
+* 不做字符串规范化
+* 不做大小写转换
+* 不做模糊匹配
+* 不推断同义词或相似商品
 
-### 关闭时机
+以下字段不参与 Duplicate Detection：
 
-```text
-F3-04 接入前
-```
+* Quantity
+* Note
+* Category
+* Product Image
+* Target Purchase Date
+
+### User Interaction
+
+检测到 Suspected Duplicate 时，向用户显示“发现相似 Todo”，并提供以下选择：
+
+* 创建新的 Todo
+* 使用已有 Todo
+* 修改已有 Todo
+
+如果三个比较字段完全相同，额外提示用户是否合并 Quantity，由用户决定。
+
+系统不得自动合并 Todo，也不得自动修改已有 Todo。
+
+### Docs Synced
+
+* [x] docs/phase3-decisions.md
+* [x] docs/phase3-product.md
+* [x] docs/phase3-intelligence-architecture.md
+
+### Closed By
+
+Product Owner
+
+### Closed At
+
+2026-10-02
 
 ---
 
-## L-03 Recent Time Window
+## L-03 "最近" 语义
 
-**Status:** Later
+**Status:** Closed
+
 **Authority:** Product Owner
 
-### 阻断范围
+### Decision
 
 ```text
-不阻断 Step 1
-阻断 F3-02 / F3-03 最终实现
+"最近" ≠ 时间窗口
+
+"最近" = 最近一次已开始旅行（有 item 记录）的 Shopping Records
 ```
 
-### 需要决定
+### Context Resolution
 
-```text
-"最近" 时间窗定义
-Limited Main Results 的 N 值
-```
+**Context Valid**
 
-### 关闭时机
+满足以下所有条件：
 
-```text
-F3-02 / F3-03 接入前
-```
+* 用户从 Trip Entry 进入
+* Current Trip 已开始
+* Current Trip 已有 Item Records
+
+处理规则：
+
+* 直接使用 Current Trip 查询
+* 不展示候选 Trip 列表
+
+**Context Invalid**
+
+包括：
+
+* Global Entry
+* Trip Entry，但 Current Trip 尚未开始
+* Trip Entry，但 Current Trip 没有 Item Records
+
+处理规则：
+
+* 仅选择已开始且有 Item Records 的 Trips 作为候选
+* 按 `start_date` 降序排列
+* 最多展示 5 个候选 Trip
+* 用户选择后，直接执行查询，不需要第二次确认
+* 如果只有 1 个候选 Trip，直接使用该 Trip，不展示候选列表
+* 如果没有候选 Trip，提示“没有创建过有 record 的旅行”
+
+### Constraints
+
+* 不使用固定的 7 / 30 / 90 天时间窗口
+* 不新增数据库字段
+* 不新增 Migration
+* 排除未来尚未开始的 Trip
+* 本 Phase 不区分“最近”与“上次”
+* 不将“最近”自动解释为最近几天
+
+### Future Consideration
+
+如果未来支持明确的“最近 N 天”查询，可使用时间窗口语义，且时间范围上限为 365 天。该项不属于当前决策，也不阻断当前 Feature 实现。
+
+### Docs Synced
+
+* [x] docs/phase3-decisions.md
+* [x] docs/phase3-product.md
+* [x] docs/phase3-intelligence-architecture.md
+* [x] docs/phase3-design-system.md
+* [x] docs/phase3-component-library.md
+
+### Closed By
+
+Product Owner
+
+### Closed At
+
+2026-10-02
 
 ---
 
@@ -1684,9 +1865,9 @@ Cursor Plan v2
 
 | Decision | Status | 阻断 Feature |
 | :--- | :--- | :--- |
-| L-01 Brand / Destination | Later | F3-02 |
-| L-02 Duplicate Detection | Later | F3-04 |
-| L-03 Recent Time Window | Later | F3-02 / F3-03 |
+| L-01 Brand / Destination | ✅ Closed | — |
+| L-02 Duplicate Detection | ✅ Closed | — |
+| L-03 "最近" 语义 | ✅ Closed | — |
 | L-04a OCR Provider | Later | F3-01 Receipt |
 | L-05a STT Provider | Later | F3-01 Voice |
 | L-06a LLM Provider | Later | F3-01 / F3-05 |
@@ -1723,10 +1904,10 @@ Cursor Plan v2
 
 # Document Status
 
-**Version:** 1.4
+**Version:** 1.5
 **Status:** Core Blocking Decisions Closed
-**Later Decisions:** Open / Non-blocking
-**Next Action:** 文档同步 + Consistency Check + Cursor Plan v2
+**Later Decisions:** L-04a / L-05a / L-06a Open / Non-blocking
+**Next Action:** 完成剩余文档同步 + Consistency Check + Cursor Plan v2
 **Coding:** 待开放
 
 ---
@@ -1740,8 +1921,5 @@ Cursor Plan v2
 > **AI 不得自行关闭 Decision，不得自行补默认值，不得自行修改产品语义。**
 >
 > **先锁 SoT，再锁 Data Model，再锁 Runtime，最后 Coding。**
-```
-
----
 
 ---
