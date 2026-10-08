@@ -24,8 +24,8 @@ todos:
     content: "Step 6: F3-04 Todo formal + Legacy dual-track (BLOCKED L-02 duplicate)"
     status: cancelled
   - id: step-7-providers
-    content: "Step 7: I-01/I-02 + Receipt/Voice/LLM when L-04/05/06 closed"
-    status: cancelled
+    content: "Step 7: I-01/I-02 shared write infrastructure (OCR/STT/LLM remain Later)"
+    status: completed
   - id: step-8-f305
     content: "Step 8: F3-05 orchestration (LLM path BLOCKED L-06)"
     status: cancelled
@@ -317,17 +317,19 @@ Verification: No FX / no cross-currency compare.
 
 ### Step 7 — Shared Write Infrastructure: I-01 / I-02
 
+**Status:** Completed (Batch 3) — Runtime verification PASS; no blocking issues.
+
 Goal:
 Implement the shared transactional and temporary-asset infrastructure
 required by multi-record writes and receipt-backed workflows.
 
-Includes:
-- Server-side atomic batch Confirm (I-01)
+Includes (done):
+- Server-side atomic batch Confirm (I-01) — Postgres RPC `confirm_batch_shopping_writes`
 - Temporary receipt asset lifecycle (I-02)
 - Formal receipt asset promotion (I-02)
-- Cleanup lifecycle (I-02)
+- Cleanup lifecycle (I-02) — cancel + async expire ≤ 7 days
 
-Does NOT include:
+Does NOT include (still out of scope / Later):
 - OCR provider
 - STT provider
 - LLM provider
@@ -336,10 +338,12 @@ Does NOT include:
 Dependencies: Steps 1–3 for schema and CLI-side Draft / Confirm.
 Not blocked by L-04 / L-05 / L-06.
 
-Verification:
+Verification (passed):
 - Temp cleanup ≤ 7 days
 - Confirm promotes asset
 - Multi-write atomic (rollback on any failure)
+- Authorization / RLS / path ownership
+- Known residual risk: Storage promote is outside Postgres TX; orphan formal object possible if post-rollback Storage cleanup fails
 
 ---
 

@@ -452,6 +452,12 @@ Implementation may use：
 
 不得使用应用层串行写入 + 补偿。
 
+Phase 3 Batch 3（I-01）实现：
+
+* 多记录 Confirm 的数据库事务边界 = Postgres RPC / Database Function `confirm_batch_shopping_writes`
+* `SECURITY INVOKER`；经 `auth.uid()` / trip ownership / receipt path ownership 与既有 RLS
+* 任一写入失败 → 函数内 `raise` → 整笔 ROLLBACK（不用应用层串行写入 + 补偿）
+
 ---
 
 # 8. Intent Understanding
@@ -825,6 +831,13 @@ temporary asset 必须进入 cleanup 流程
 * Cleanup 可以异步执行
 * Temporary Receipt Asset 的最长保留时间不得超过 7 天
 * 存储 bucket 与 RLS 需区分 temporary / formal
+
+Phase 3 Batch 3（I-02）实现：
+
+* Temp bucket `receipt-images-temp` / formal bucket `receipt-images`（既有 RLS，不重做）
+* Confirm：temp → formal promotion，再由 I-01 RPC 创建 `receipts` + `receipt_items`
+* Cancel / Expire：temp cleanup；最长保留 ≤ 7 天（异步 sweep 允许）
+* **Residual risk：** Storage 与 Postgres 不在同一事务边界。RPC rollback 后若 formal Storage cleanup 失败，理论上可能留下 orphan formal object；数据库侧保持完整回滚。不含 OCR。
 
 ---
 
@@ -1855,6 +1868,8 @@ Implementation may use：
 
 不得使用应用层串行写入 + 补偿。
 
+Phase 3 Batch 3：I-01 已落为 Postgres RPC `confirm_batch_shopping_writes`（见 §7.3）。Batch 3 Runtime Review PASS。
+
 ---
 
 # 26. Cross-Function Data Integrity
@@ -2444,9 +2459,9 @@ Current clarifications:
 * `price_source` is internal processing metadata unless explicitly promoted into the product model.
 * Purchase Date priority is a Draft initialization priority.
 * Confirm is an explicit user action.
-* Batch writes share a single transaction boundary.
+* Batch writes share a single transaction boundary (I-01: Postgres RPC; Batch 3 PASS).
 * Task State stores a reference to Draft, not the Draft itself.
-* Temporary Receipt Assets have a bounded lifecycle.
+* Temporary Receipt Assets have a bounded lifecycle (I-02: temp/promote/cleanup ≤7d; Batch 3 PASS; Storage↔DB residual orphan risk acknowledged).
 * Closing Companion Surface does not clear Task State or Draft State.
 * Draft is not a Product Entity, but Draft still requires business validation by Workflow / Application Layer before Confirm.
 * Legacy Todo and Phase 3 New Todo are separated; DB NOT NULL is not applied to `shopping_todos` because of Legacy data.

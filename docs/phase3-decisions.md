@@ -1276,7 +1276,7 @@ Implementation may use:
 
 - [x] docs/phase3-decisions.md
 - [x] docs/phase3-intelligence-architecture.md
-- [ ] Phase 3 Migration 文件（待执行）
+- [x] Phase 3 Migration 文件（`20261008120000_phase3_batch_confirm_rpc.sql`；Batch 3 Runtime Review PASS）
 
 ### Closed By
 
@@ -1339,7 +1339,7 @@ temporary asset 必须进入 cleanup 流程
 
 - [x] docs/phase3-decisions.md
 - [x] docs/phase3-intelligence-architecture.md
-- [ ] Phase 3 Migration / Storage 实现（待执行）
+- [x] Phase 3 Migration / Storage 实现（buckets + lifecycle; Batch 3 Runtime Review PASS）
 
 ### Closed By
 

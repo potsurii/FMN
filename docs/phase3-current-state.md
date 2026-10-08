@@ -1,6 +1,6 @@
 # Phase 3 Current State
 
-Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Brand remains BLOCKED.
+Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C / 3. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Batch 3 I-01 / I-02 shared write infrastructure is implemented; Batch 3 Runtime Review = **PASS**. Brand remains BLOCKED.
 
 This document describes **what exists in the repository now**.  
 It is not a product requirements document and not an implementation plan.
@@ -13,14 +13,16 @@ It is not a product requirements document and not an implementation plan.
 | :--- | :--- |
 | Date | 2026-10-08 |
 | Branch | `master` (tracking `origin/master`) |
-| Last committed HEAD | `0a23547` — `feat(fmn): complete phase 3 batch 2c` |
-| Working tree | clean (Batch 2C committed and pushed) |
+| Last committed HEAD | docs sync Batch 3 Review PASS — `docs(fmn): sync phase 3 batch 3 state` (hash in git log / commit report) |
+| Prior HEAD before this docs sync | `48dcbad` — `docs(fmn): sync navigation docs after phase 3 batch 2c` |
+| Working tree note | Batch 3 implementation files may remain outside this docs-only sync commit until a separate feature commit |
+| Prior Batch 2C feature commit | `0a23547` — `feat(fmn): complete phase 3 batch 2c` |
 | Prior Batch 2B feature commit | `5796e42` — `feat(fmn): implement phase 3 batch 2b — legacy boundary, organize, todo formal path` |
 | Prior Batch 2A feature commit | `fa86bfe` — `feat(fmn): add F3-02 own-history and architecture baseline` |
 | Prior docs sync commit | `bc94852` — `docs(fmn): close L-01/L-02/L-03 and sync phase 3 docs` |
 | Prior Batch 1 eslint commit | `4b9c928` — `chore(fmn): add eslint flat config` |
-| Phase 3 batch status | **Batch 1 / 2A / 2B completed**; **Batch 2C (2C-1 Destination / 2C-2 「最近」 / 2C-3 Duplicate) completed and committed** |
-| Verification | `npm run phase3:check` / `test:batch1` / `test:batch2a` / `test:batch2b` / `test:batch2c1` / `test:batch2c2` / `test:batch2c3` / `typecheck` / `lint` |
+| Phase 3 batch status | **Batch 1 / 2A / 2B / 2C completed**; **Batch 3 (I-01 / I-02) completed — Review PASS / Ready for Commit** |
+| Verification | `npm run phase3:check` / `test:batch1` / `test:batch2a` / `test:batch2b` / `test:batch2c1` / `test:batch2c2` / `test:batch2c3` / `test:batch3` / `typecheck` / `lint` + local Supabase Batch 3 Runtime Review |
 
 Related product / decision sources (do not treat as “implemented” unless listed below):
 
@@ -283,6 +285,51 @@ Verification: `scripts/batch2c3-verify.ts` (`npm run test:batch2c3`)
 
 ---
 
+### Batch 3 — I-01 Atomic Batch Confirm + I-02 Receipt Temp Lifecycle
+
+**Status:** Completed — Runtime Review **PASS** (no blocking issues)
+
+#### I-01 — Atomic Batch Confirm
+
+- Migration: `supabase/migrations/20261008120000_phase3_batch_confirm_rpc.sql`
+- Postgres function: `confirm_batch_shopping_writes(p_trip_id, p_items, p_receipt)` — `SECURITY INVOKER`, `GRANT EXECUTE` to `authenticated`
+- Single function body = sole multi-record Confirm TX; any `raise` → full rollback
+- Ownership: `auth.uid()` trip ownership + receipt path-prefix check; RLS still applies on inserts
+- Domain: `lib/batch/confirm-batch-writes.ts` → `.rpc(...)` only (no serial insert + compensate)
+- Workflow: `lib/workflows/shared/confirm-batch-write.ts` — validate → optional I-02 promote → RPC → temp cleanup
+- Existing single-record F3-01 `confirmShoppingRecordWrite` / `convertTodoToItem` unchanged
+- No demo multi-record Companion UI invented; shared infrastructure ready for formal Workflows
+
+#### I-02 — Receipt Temporary Lifecycle
+
+- Buckets unchanged: `receipt-images-temp` / `receipt-images` (+ existing RLS)
+- TTL: `RECEIPT_TEMP_TTL_MS` = 7 days (`lib/storage/receipt-buckets.ts`)
+- Lifecycle DAL: `lib/storage/receipt-lifecycle.ts` — temp upload / signed URL / delete / promote / expired cleanup
+- Workflow actions: `lib/workflows/shared/receipt-temp.ts`
+- Confirm path: temp → formal copy, then I-01 RPC creates `receipts` + `receipt_items` with items; temp deleted after success; best-effort formal cleanup on RPC failure
+- Cancel: `CompanionHost` calls `cleanupTempReceipt(receiptImageRef)`
+- Expire: Companion open calls `sweepExpiredTempReceipts()` (async, ≤7d)
+- No OCR
+
+#### Runtime Review (local Supabase)
+
+| Check | Result |
+| :--- | :--- |
+| I-01 batch Confirm RPC success | PASS |
+| I-01 atomic rollback (no partial items / receipts / receipt_items) | PASS |
+| I-01 authorization / RLS / path ownership / EXECUTE | PASS |
+| I-02 temp → formal promotion + formal receipt / receipt_items | PASS |
+| I-02 RPC failure → DB rollback + formal cleanup when delete succeeds | PASS |
+| I-02 cancel temp cleanup | PASS |
+| I-02 7-day expiration sweep | PASS |
+| Blocking issues | None |
+
+**Residual risk (non-blocking):** Storage promote is outside the Postgres transaction. After RPC rollback, if best-effort formal Storage delete fails or is skipped, an orphan formal object may remain. DB rows stay consistent (full rollback).
+
+Static verification: `scripts/batch3-verify.ts` (`npm run test:batch3`)
+
+---
+
 ### Batch 2B — Step 6: F3-04 Todo Formal Path (Companion)
 
 **Status:** Implemented (Draft → Explicit Confirm → Write); Phase 2 manual form unchanged
@@ -334,7 +381,7 @@ Verification: `scripts/batch2b-verify.ts` (`npm run test:batch2b`)
 | No AI provider integration | No OCR / STT / LLM packages or providers in application code |
 | No AI-parallel UI components | No `AIButton` / `AIInput` / `AIForm` in `*.ts` / `*.tsx` |
 | No Agent loop | F3-05 orchestration not implemented |
-| Formal write safety | F3-01 / F3-04 Confirm paths only; F3-02 / F3-03 read-only |
+| Formal write safety | F3-01 / F3-04 Confirm paths; multi-record Confirm via I-01 RPC; F3-02 / F3-03 read-only |
 | Legacy / New Todo boundary | Fixed UTC `2026-10-02T00:00:00.000Z` |
 | Boundary automation | `npm run phase3:check` |
 
@@ -358,12 +405,14 @@ Still Later (do not invent closures):
 | L-05 | STT provider (Layer 2) | Later (Privacy Layer 1 closed) | F3-01 Voice path |
 | L-06 | LLM provider (Layer 2) | Later (Privacy Layer 1 closed) | LLM-assisted F3-01 / F3-05 |
 
-Additional open inputs (not Later Decisions, but unfinished):
+Additional open inputs (not Later Decisions):
 
 | Item | Current state |
 | :--- | :--- |
-| I-01 batch transaction RPC | Decision closed; multi-write TX mechanism not implemented yet |
-| I-02 receipt temp lifecycle | Buckets/RLS stubs present; promote/cleanup not implemented |
+| I-01 batch transaction RPC | **Completed** (Batch 3) + Runtime Review PASS |
+| I-02 receipt temp lifecycle | **Completed** (Batch 3) + Runtime Review PASS |
+| Storage vs DB TX residual risk | Known non-blocking: orphan formal Storage object possible if post-rollback cleanup fails |
+| Multi-record Companion UI | Not invented in Batch 3; wire when F3-01 Receipt / F3-05 batch flows need it |
 
 ---
 
@@ -371,7 +420,8 @@ Additional open inputs (not Later Decisions, but unfinished):
 
 Suggested next coding slices (not started):
 
-- I-01 / I-02 when multi-write / receipt lifecycle is in scope
+- Separate feature commit for Batch 3 implementation files if not yet committed with this docs sync
+- Wire multi-record Confirm Workflow UI when F3-01 Receipt / F3-05 need it (reuse I-01 / I-02)
 - OCR / STT / LLM only after L-04 / L-05 / L-06 Layer 2 close
 - F3-05 / Agent loop only when explicitly authorized
 
