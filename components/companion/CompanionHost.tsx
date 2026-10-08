@@ -13,13 +13,17 @@ import {
   RecordDraftReview,
   type TripOption,
 } from "@/components/companion/RecordDraftReview";
+import { ReceiptDraftGroupReview } from "@/components/companion/ReceiptDraftGroupReview";
 import { TodoDraftReview } from "@/components/companion/TodoDraftReview";
 import { TodoDuplicatePrompt } from "@/components/companion/TodoDuplicatePrompt";
 import { isExplicitConfirmIntent } from "@/lib/companion/confirm-intent";
 import {
   clearDraft,
+  clearReceiptDraftGroup,
   loadDraft,
+  loadReceiptDraftGroup,
   saveDraft,
+  saveReceiptDraftGroup,
   sweepExpiredDrafts,
 } from "@/lib/companion/draft-storage";
 import {
@@ -30,16 +34,24 @@ import {
   loadTaskState,
   saveTaskState,
 } from "@/lib/companion/task-storage";
-import type {
-  CompanionContext,
-  CompanionSurfaceMode,
-  ShoppingRecordDraft,
-  ShoppingTodoDraft,
-  TaskState,
+import {
+  createEmptyShoppingRecordDraft,
+  type CompanionContext,
+  type CompanionSurfaceMode,
+  type ReceiptDraftGroup,
+  type ShoppingRecordDraft,
+  type ShoppingTodoDraft,
+  type TaskState,
 } from "@/lib/companion/types";
 import type { ItemWithDisplay } from "@/lib/items/types";
 import type { ShoppingTodoWithDisplay } from "@/lib/todos/types";
 import { confirmShoppingRecordWrite } from "@/lib/workflows/record-input/confirm-write";
+import {
+  addReceiptItemDraft,
+  createEmptyReceiptDraftGroup,
+  deleteReceiptItemDraft,
+  getReceiptDraftGroupConfirmState,
+} from "@/lib/workflows/record-input/receipt-draft-group";
 import {
   buildShoppingRecordDraftFromText,
   getShoppingRecordDraftMissing,
@@ -51,7 +63,9 @@ import type { OrganizeResultView } from "@/lib/workflows/organize/types";
 import {
   cleanupTempReceipt,
   sweepExpiredTempReceipts,
+  uploadTempReceipt,
 } from "@/lib/workflows/shared/receipt-temp";
+import { confirmBatchShoppingWrite } from "@/lib/workflows/shared/confirm-batch-write";
 import type { RecentTripCandidate } from "@/lib/trips/recent-trip";
 import { confirmShoppingTodoWrite, confirmMergeTodoQuantity } from "@/lib/workflows/todo-planning/confirm-write";
 import {
@@ -87,6 +101,10 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [draft, setDraft] = useState<ShoppingRecordDraft | null>(null);
+  const [receiptGroup, setReceiptGroup] = useState<ReceiptDraftGroup | null>(
+    null,
+  );
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [todoDraft, setTodoDraft] = useState<ShoppingTodoDraft | null>(null);
   const [task, setTask] = useState<TaskState | null>(null);
   const [writing, setWriting] = useState(false);
@@ -116,6 +134,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   const restorePersisted = useCallback(() => {
     sweepExpiredDrafts();
     void sweepExpiredTempReceipts();
+    setReceiptGroup(loadReceiptDraftGroup());
     const existingTask = loadTaskState();
     if (!existingTask || existingTask.finalState !== "active") {
       setTask(null);
@@ -419,6 +438,153 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     }
   }
 
+  function persistReceiptGroup(next: ReceiptDraftGroup) {
+    setReceiptGroup(next);
+    saveReceiptDraftGroup(next);
+  }
+
+  function startReceiptGroup() {
+    if (draft || todoDraft || receiptGroup) return;
+    const next = createEmptyReceiptDraftGroup();
+    persistReceiptGroup(next);
+    setWriteError(null);
+    appendMessage(
+      "assistant",
+      "已开始收据草稿。可上传临时收据图片，并手动新增商品草稿。确认前不会写入正式记录。",
+    );
+  }
+
+  function handleAddReceiptItem() {
+    if (!receiptGroup) return;
+    const trip =
+      context.tripId != null
+        ? trips.find((t) => t.id === context.tripId) ?? null
+        : null;
+    const item = createEmptyShoppingRecordDraft({
+      sourceText: "",
+      tripId: context.entry === "trip" ? context.tripId : null,
+      tripLabel:
+        context.entry === "trip"
+          ? context.tripName ?? trip?.name ?? null
+          : null,
+      purchaseDateDefault: receiptGroup.receiptDate,
+    });
+    persistReceiptGroup(addReceiptItemDraft(receiptGroup, item));
+  }
+
+  function handleDeleteReceiptItem(itemId: string) {
+    if (!receiptGroup) return;
+    persistReceiptGroup(deleteReceiptItemDraft(receiptGroup, itemId));
+  }
+
+  async function handleReceiptImage(file: File | null) {
+    if (!receiptGroup) return;
+    if (!file) {
+      const prev = receiptGroup.receiptImageRef;
+      persistReceiptGroup({
+        ...receiptGroup,
+        receiptImageRef: null,
+        updatedAt: new Date().toISOString(),
+      });
+      if (prev) void cleanupTempReceipt(prev);
+      return;
+    }
+
+    setUploadingReceipt(true);
+    setWriteError(null);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      const result = await uploadTempReceipt(body);
+      if (!result.ok) {
+        setWriteError(result.error);
+        appendMessage("system", result.error);
+        return;
+      }
+      const prev = receiptGroup.receiptImageRef;
+      persistReceiptGroup({
+        ...receiptGroup,
+        receiptImageRef: result.path,
+        updatedAt: new Date().toISOString(),
+      });
+      if (prev && prev !== result.path) void cleanupTempReceipt(prev);
+    } finally {
+      setUploadingReceipt(false);
+    }
+  }
+
+  async function runReceiptGroupWrite(from: "button" | "intent") {
+    if (!receiptGroup) return;
+    const state = getReceiptDraftGroupConfirmState(receiptGroup);
+    if (!state.ready) {
+      setWriteError(`请先补齐：${state.reasons.join("；")}`);
+      appendMessage(
+        "system",
+        from === "intent"
+          ? "已识别写入意图，但收据草稿仍不完整，尚未写入。"
+          : "收据草稿不完整，无法写入。",
+      );
+      return;
+    }
+
+    const tripId = receiptGroup.items[0]?.tripId;
+    if (!tripId) return;
+
+    setWriting(true);
+    setWriteError(null);
+    try {
+      const result = await confirmBatchShoppingWrite({
+        tripId,
+        items: receiptGroup.items.map((item) => ({
+          name: item.name,
+          price: item.price as number,
+          currency: item.currency as string,
+          location: item.location,
+          purchaseDate: item.purchaseDate as string,
+          category: item.category,
+          note: item.note.trim() ? item.note.trim() : null,
+          quantity: item.quantity,
+          imagePath: item.imagePath,
+          visibility: item.visibility,
+        })),
+        tempReceiptPath: receiptGroup.receiptImageRef,
+        receiptDate: receiptGroup.receiptDate,
+      });
+
+      if (!result.ok) {
+        setWriteError(result.error);
+        appendMessage(
+          "system",
+          `写入失败：${result.error}。草稿已保留，可修改后重试。`,
+        );
+        return;
+      }
+
+      clearReceiptDraftGroup();
+      setReceiptGroup(null);
+      appendMessage(
+        "assistant",
+        `已写入 ${result.result.itemIds.length} 条正式购物记录。`,
+      );
+      router.refresh();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "写入失败，请重试";
+      setWriteError(msg);
+      appendMessage("system", `写入失败：${msg}。草稿已保留。`);
+    } finally {
+      setWriting(false);
+    }
+  }
+
+  function handleCancelReceiptGroup() {
+    const tempReceiptPath = receiptGroup?.receiptImageRef ?? null;
+    clearReceiptDraftGroup();
+    setReceiptGroup(null);
+    setWriteError(null);
+    if (tempReceiptPath) void cleanupTempReceipt(tempReceiptPath);
+    appendMessage("system", "已取消收据草稿。");
+  }
+
   async function runTodoFormalWrite(
     from: "button" | "intent",
     duplicateAck?: "create_new",
@@ -522,18 +688,21 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     appendMessage("user", raw);
     setInput("");
 
-    if ((draft || todoDraft) && isExplicitConfirmIntent(raw)) {
+    if ((draft || todoDraft || receiptGroup) && isExplicitConfirmIntent(raw)) {
       if (draft) void runFormalWrite("intent");
       else if (todoDraft) void runTodoFormalWrite("intent");
+      else if (receiptGroup) void runReceiptGroupWrite("intent");
       return;
     }
 
-    if (draft || todoDraft) {
+    if (draft || todoDraft || receiptGroup) {
       appendMessage(
         "assistant",
         draft
           ? "如需写入正式记录，请点击「确认写入正式记录」，或明确说「帮我保存」「确认写入」。普通回复不会触发写入。"
-          : "如需写入正式代办，请点击「确认写入正式代办」，或明确说「帮我保存」「确认写入」。普通回复不会触发写入。",
+          : receiptGroup
+            ? "如需写入正式记录，请点击「确认写入正式记录」，或明确说「帮我保存」「确认写入」。普通回复不会触发写入。"
+            : "如需写入正式代办，请点击「确认写入正式代办」，或明确说「帮我保存」「确认写入」。普通回复不会触发写入。",
       );
       return;
     }
@@ -624,8 +793,8 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     }
   }
 
-  const busy = writing || searching;
-  const hasAnyDraft = Boolean(draft || todoDraft);
+  const busy = writing || searching || uploadingReceipt;
+  const hasAnyDraft = Boolean(draft || todoDraft || receiptGroup);
 
   return (
     <>
@@ -707,6 +876,22 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
             <OrganizeResultSection view={organizeView} />
           ) : null}
 
+          {receiptGroup ? (
+            <ReceiptDraftGroupReview
+              group={receiptGroup}
+              trips={trips}
+              writeError={writeError}
+              writing={writing}
+              uploadingImage={uploadingReceipt}
+              onChange={persistReceiptGroup}
+              onAddItem={handleAddReceiptItem}
+              onDeleteItem={handleDeleteReceiptItem}
+              onImageFile={(file) => void handleReceiptImage(file)}
+              onConfirm={() => void runReceiptGroupWrite("button")}
+              onCancel={handleCancelReceiptGroup}
+            />
+          ) : null}
+
           {draft ? (
             <RecordDraftReview
               draft={draft}
@@ -786,6 +971,16 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
               rows={3}
             />
             <div className="flex justify-end gap-2">
+              {!draft && !todoDraft && !receiptGroup ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={startReceiptGroup}
+                >
+                  添加收据草稿
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="secondary"

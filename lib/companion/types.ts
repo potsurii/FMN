@@ -72,6 +72,25 @@ export type ShoppingTodoDraft = {
 
 export type CompanionDraft = ShoppingRecordDraft | ShoppingTodoDraft;
 
+/**
+ * Client-only Receipt Draft Group (Batch 4-A).
+ * merchant is draft information — not a receipts table column.
+ * receiptImageRef lives on the group, not on each Item Draft.
+ */
+export type ReceiptDraftGroup = {
+  version: 1;
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  receiptImageRef: string | null;
+  receiptDate: string | null;
+  merchant: string;
+  items: ShoppingRecordDraft[];
+};
+
+/** One active group. Does not reuse shopping_record / shopping_todo keys. */
+export const RECEIPT_DRAFT_GROUP_STORAGE_KEY = `${DRAFT_KEY_PREFIX}receipt_group:active`;
+
 export type TaskFinalState =
   | "active"
   | "completed"

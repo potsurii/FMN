@@ -1,8 +1,10 @@
 import {
   DRAFT_TTL_MS,
+  RECEIPT_DRAFT_GROUP_STORAGE_KEY,
   draftStorageKey,
   type CompanionDraft,
   type DraftType,
+  type ReceiptDraftGroup,
   type ShoppingRecordDraft,
   type ShoppingTodoDraft,
 } from "./types";
@@ -83,6 +85,64 @@ export function loadDraft(
       // ignore
     }
     return null;
+  }
+}
+
+function isReceiptDraftGroup(value: unknown): value is ReceiptDraftGroup {
+  if (!value || typeof value !== "object") return false;
+  const g = value as Partial<ReceiptDraftGroup>;
+  return (
+    g.version === 1 &&
+    typeof g.id === "string" &&
+    typeof g.updatedAt === "string" &&
+    typeof g.merchant === "string" &&
+    (g.receiptImageRef === null || typeof g.receiptImageRef === "string") &&
+    (g.receiptDate === null || typeof g.receiptDate === "string") &&
+    Array.isArray(g.items) &&
+    g.items.every((item) => isShoppingRecordDraft(item))
+  );
+}
+
+export function saveReceiptDraftGroup(group: ReceiptDraftGroup): void {
+  if (!isBrowser()) return;
+  const next = { ...group, updatedAt: new Date().toISOString() };
+  try {
+    localStorage.setItem(
+      RECEIPT_DRAFT_GROUP_STORAGE_KEY,
+      JSON.stringify(next),
+    );
+  } catch {
+    // fail soft
+  }
+}
+
+export function loadReceiptDraftGroup(): ReceiptDraftGroup | null {
+  if (!isBrowser()) return null;
+  try {
+    const raw = localStorage.getItem(RECEIPT_DRAFT_GROUP_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isReceiptDraftGroup(parsed) || isExpired(parsed.updatedAt)) {
+      localStorage.removeItem(RECEIPT_DRAFT_GROUP_STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    try {
+      localStorage.removeItem(RECEIPT_DRAFT_GROUP_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+}
+
+export function clearReceiptDraftGroup(): void {
+  if (!isBrowser()) return;
+  try {
+    localStorage.removeItem(RECEIPT_DRAFT_GROUP_STORAGE_KEY);
+  } catch {
+    // ignore
   }
 }
 

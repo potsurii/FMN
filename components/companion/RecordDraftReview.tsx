@@ -26,6 +26,8 @@ type RecordDraftReviewProps = {
   onChange: (next: ShoppingRecordDraft) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Group review reuses the fields and keeps a single group-level Confirm. */
+  showWriteActions?: boolean;
 };
 
 const CATEGORY_SELECT = [
@@ -41,6 +43,7 @@ export function RecordDraftReview({
   onChange,
   onConfirm,
   onCancel,
+  showWriteActions = true,
 }: RecordDraftReviewProps) {
   const { complete, missing } = getShoppingRecordDraftMissing(draft);
   const selectedTrip = trips.find((t) => t.id === draft.tripId) ?? null;
@@ -192,24 +195,26 @@ export function RecordDraftReview({
         </p>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={writing}
-          onClick={onCancel}
-        >
-          取消草稿
-        </Button>
-        <Button
-          type="button"
-          disabled={!complete || writing}
-          onClick={onConfirm}
-          data-fmn-confirm-write="true"
-        >
-          {writing ? "写入中…" : "确认写入正式记录"}
-        </Button>
-      </div>
+      {showWriteActions ? (
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={writing}
+            onClick={onCancel}
+          >
+            取消草稿
+          </Button>
+          <Button
+            type="button"
+            disabled={!complete || writing}
+            onClick={onConfirm}
+            data-fmn-confirm-write="true"
+          >
+            {writing ? "写入中…" : "确认写入正式记录"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
