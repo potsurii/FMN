@@ -1,10 +1,17 @@
 /**
  * F3-02 rule-assisted query parse — deterministic only (L-06 not closed).
- * Never invent Brand / Destination / 最近 / relative trip semantics.
+ * Destination: trips.destination ILIKE. Brand remains unsupported.
+ * 「最近」 → recentTrip (L-03), not a calendar window.
  */
 
 import { isCategorySlug, type CategorySlug } from "@/lib/category";
 import type { OwnHistoryQuery } from "@/lib/history/types";
+import {
+  detectRelativeDestinationTripMode,
+  extractDestination,
+  hasCalendarYearCue,
+  hasSeveralTripsCue,
+} from "@/lib/trips/destination-parse";
 
 export type HistoryParseResult =
   | { status: "ok"; query: OwnHistoryQuery; summary: string }
@@ -32,10 +39,6 @@ const TODO_CUE_RE =
   /帮我加(?:一个|条)?|加入代办|购物代办|准备买|计划买|创建代办|\btodo\b/i;
 
 const RECENT_RE = /最近/;
-const RELATIVE_TRIP_RE = /上次去|第一次去|前几次/;
-/** Destination-style cues without an explicit trip id — blocked under L-01. */
-const DESTINATION_RE =
-  /(?:去)?(?:日本|泰国|韩国|美国|中国|巴黎|东京|大阪|曼谷|首尔|京都|纽约|伦敦)(?:买|购|旅行|出差)?/;
 
 const CURRENCY_RE =
   /\b(THB|JPY|USD|EUR|CNY|HKD|KRW|SGD|GBP|TWD|AUD|CAD)\b/i;
@@ -76,7 +79,6 @@ export function classifyCompanionIntent(text: string): CompanionIntent {
 
   const hits = [organize, todo, history, record].filter(Boolean).length;
   if (hits > 1) {
-    // 整理 overrides plain 列出/查 when organize cues present alone with history list phrasing
     if (organize && history && !todo && !record) return "organize";
     return "ambiguous";
   }
@@ -101,7 +103,6 @@ function extractName(text: string): string | null {
   const a = text.match(NAME_AFTER_CHA_RE);
   if (a?.[1]) {
     const name = a[1].trim().replace(/[吗么？?]+$/, "");
-    // Avoid treating pure category words as product names when category hint exists
     if (name && !CATEGORY_HINTS.some((h) => h.re.test(name) && name.length <= 4)) {
       return name.slice(0, 80);
     }
@@ -136,6 +137,15 @@ function summarize(query: OwnHistoryQuery): string {
   const parts: string[] = [];
   if (query.name) parts.push(`商品「${query.name}」`);
   if (query.category) parts.push(`分类 ${query.category}`);
+  if (query.destination) {
+    if (query.relativeDestinationTrip === "latest") {
+      parts.push(`上次「${query.destination}」旅行`);
+    } else if (query.relativeDestinationTrip === "first") {
+      parts.push(`第一次「${query.destination}」旅行`);
+    } else {
+      parts.push(`目的地「${query.destination}」`);
+    }
+  }
   if (query.location) parts.push(`地点「${query.location}」`);
   if (query.currency) parts.push(`货币 ${query.currency}`);
   if (query.minPrice != null || query.maxPrice != null) {
@@ -149,13 +159,13 @@ function summarize(query: OwnHistoryQuery): string {
     );
   }
   if (query.tripId) parts.push(`旅行 ${query.tripId.slice(0, 8)}…`);
+  if (query.recentTrip) parts.push("最近一次已开始且有记录的旅行");
   if (parts.length === 0) return "你的全部购物记录（有限条数）";
   return parts.join("、");
 }
 
 /**
  * Parse natural language into OwnHistoryQuery.
- * Blocks L-01 / L-03 cues; asks when price lacks currency.
  */
 export function parseOwnHistoryQuery(text: string): HistoryParseResult {
   const raw = text.trim();
@@ -163,25 +173,27 @@ export function parseOwnHistoryQuery(text: string): HistoryParseResult {
     return { status: "ask", message: "请说明要查询的商品、分类、地点、日期或旅行。" };
   }
 
-  if (RECENT_RE.test(raw)) {
+  if (hasSeveralTripsCue(raw)) {
     return {
-      status: "blocked",
-      code: "L-03",
+      status: "ask",
       message:
-        "当前无法按「最近」查询（L-03 未关闭）。请改用明确日期范围、商品名、分类、地点或旅行。",
+        "「前几次」范围不明确。请改用「上次去…」「第一次去…」、目的地，或选择明确旅行。",
     };
   }
 
-  if (RELATIVE_TRIP_RE.test(raw) || DESTINATION_RE.test(raw)) {
+  if (hasCalendarYearCue(raw) && !extractDate(raw)) {
     return {
-      status: "blocked",
-      code: "L-01",
+      status: "ask",
       message:
-        "当前无法按目的地或相对旅行语义查询（L-01 未关闭）。请改用旅行选择、商品名、分类、地点或明确日期。",
+        "请使用明确的日历日期（例如 2025-01-10），当前不按「去年/前年/今年」自动推算年份。",
     };
   }
 
   const query: OwnHistoryQuery = {};
+
+  if (RECENT_RE.test(raw)) {
+    query.recentTrip = true;
+  }
 
   if (LIST_ALL_RE.test(raw)) {
     return {
@@ -191,8 +203,26 @@ export function parseOwnHistoryQuery(text: string): HistoryParseResult {
     };
   }
 
+  const destination = extractDestination(raw);
+  if (destination) {
+    query.destination = destination;
+    const relative = detectRelativeDestinationTripMode(raw);
+    if (relative) query.relativeDestinationTrip = relative;
+  } else if (detectRelativeDestinationTripMode(raw)) {
+    return {
+      status: "ask",
+      message: "请说明目的地，例如「上次去日本买了什么」。",
+    };
+  }
+
   const name = extractName(raw);
-  if (name) query.name = name;
+  if (
+    name &&
+    name !== destination &&
+    !/^(什么|啥|哪些|什么东西)$/.test(name)
+  ) {
+    query.name = name;
+  }
 
   const category = extractCategory(raw);
   if (category) query.category = category;
@@ -227,7 +257,7 @@ export function parseOwnHistoryQuery(text: string): HistoryParseResult {
   if (tripId) query.tripId = tripId;
 
   const locMatch = raw.match(
-    /(?:地点|购买地点|在)\s*[:：]?\s*([A-Za-z0-9\u4e00-\u9fff][\w\u4e00-\u9fff ·-]{1,40})/,
+    /(?:地点|购买地点)\s*[:：]?\s*([A-Za-z0-9\u4e00-\u9fff][\w\u4e00-\u9fff ·-]{1,40})/,
   );
   if (locMatch?.[1]) {
     query.location = locMatch[1].trim();
@@ -240,12 +270,11 @@ export function parseOwnHistoryQuery(text: string): HistoryParseResult {
   if (!hasFilter && !HISTORY_CUE_RE.test(raw)) {
     return {
       status: "ask",
-      message: "请说明要查询的条件（商品名、分类、地点、日期、货币或旅行）。",
+      message: "请说明要查询的条件（商品名、分类、目的地、地点、日期、货币或旅行）。",
     };
   }
 
   if (!hasFilter && HISTORY_CUE_RE.test(raw) && !LIST_ALL_RE.test(raw)) {
-    // e.g. "查一下" with no object — ask
     if (!/买过|防晒|美妆|食品|查询我的记录/.test(raw) && !name && !category) {
       return {
         status: "ask",
@@ -254,11 +283,10 @@ export function parseOwnHistoryQuery(text: string): HistoryParseResult {
     }
   }
 
-  // "买过防晒吗" → category only is enough
   if (!hasFilter) {
     return {
       status: "ask",
-      message: "未能识别可用的查询条件。请使用商品名、分类、地点、日期或「查询我的记录」。",
+      message: "未能识别可用的查询条件。请使用商品名、分类、目的地、地点、日期或「查询我的记录」。",
     };
   }
 

@@ -13,9 +13,12 @@ import { CATEGORY_OPTIONS } from "@/lib/category";
 import { DEFAULT_QUANTITY } from "@/lib/quantity";
 import { createClient } from "@/lib/supabase/client";
 import { uploadUserImage } from "@/lib/storage/upload";
-import { createTodo, updateTodo } from "@/lib/todos/mutations";
+import { findSuspectedDuplicates } from "@/lib/todos/duplicate";
+import { createTodo, mergeTodoQuantity, updateTodo } from "@/lib/todos/mutations";
+import { fetchActiveTodosByTripId } from "@/lib/todos/queries";
 import type { ShoppingTodoWithDisplay } from "@/lib/todos/types";
 import { validateTodoForm } from "@/lib/todos/validation";
+import { TodoDuplicatePrompt } from "@/components/companion/TodoDuplicatePrompt";
 
 type ShoppingTodoFormProps = {
   mode: "create" | "edit";
@@ -69,6 +72,20 @@ export function ShoppingTodoForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [duplicates, setDuplicates] = useState<ShoppingTodoWithDisplay[] | null>(
+    null,
+  );
+  const [pendingPayload, setPendingPayload] = useState<{
+    tripId: string;
+    name: string;
+    imagePath: string | null;
+    category: ShoppingTodoWithDisplay["category"];
+    referencePrice: number | null;
+    referenceCurrency: string | null;
+    referenceLocation: string | null;
+    note: string | null;
+    quantity: number;
+  } | null>(null);
 
   async function resolveImagePath(
     supabase: ReturnType<typeof createClient>,
@@ -126,6 +143,20 @@ export function ShoppingTodoForm({
       if (mode === "edit" && todo) {
         await updateTodo(supabase, { ...payload, todoId: todo.id });
       } else {
+        const existing = await fetchActiveTodosByTripId(supabase, tripId);
+        const matches = findSuspectedDuplicates(existing, {
+          tripId,
+          name: payload.name,
+          referencePrice: payload.referencePrice,
+          referenceCurrency: payload.referenceCurrency,
+          referenceLocation: payload.referenceLocation,
+        });
+        if (matches.length > 0) {
+          setPendingPayload(payload);
+          setDuplicates(matches);
+          setSaving(false);
+          return;
+        }
         await createTodo(supabase, payload);
       }
 
@@ -260,6 +291,54 @@ export function ShoppingTodoForm({
           placeholder="可选"
         />
       </FormField>
+
+      {duplicates && pendingPayload ? (
+        <TodoDuplicatePrompt
+          existing={duplicates}
+          draftQuantity={pendingPayload.quantity}
+          busy={saving}
+          onCreateNew={async () => {
+            setSaving(true);
+            try {
+              await createTodo(createClient(), pendingPayload);
+              router.push(cancelHref);
+              router.refresh();
+            } catch (err) {
+              setSubmitError(
+                err instanceof Error ? err.message : "保存失败，请重试",
+              );
+              setSaving(false);
+            }
+          }}
+          onUseExisting={() => {
+            router.push(cancelHref);
+          }}
+          onEditExisting={(existingTodo) => {
+            router.push(`/trips/${tripId}/todos/${existingTodo.id}/edit`);
+          }}
+          onMergeQuantity={async (existingTodo) => {
+            setSaving(true);
+            try {
+              await mergeTodoQuantity(createClient(), {
+                tripId,
+                todoId: existingTodo.id,
+                addQuantity: pendingPayload.quantity,
+              });
+              router.push(cancelHref);
+              router.refresh();
+            } catch (err) {
+              setSubmitError(
+                err instanceof Error ? err.message : "合并数量失败",
+              );
+              setSaving(false);
+            }
+          }}
+          onCancel={() => {
+            setDuplicates(null);
+            setPendingPayload(null);
+          }}
+        />
+      ) : null}
 
       {submitError ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

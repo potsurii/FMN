@@ -1,6 +1,6 @@
 # Phase 3 Current State
 
-Factual implementation baseline after Phase 3 Batch 1 acceptance, Batch 2A (F3-02), and Batch 2B (Legacy Boundary UTC + F3-03 + F3-04 formal path).
+Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented in the working tree. Brand remains BLOCKED.
 
 This document describes **what exists in the repository now**.  
 It is not a product requirements document and not an implementation plan.
@@ -11,13 +11,15 @@ It is not a product requirements document and not an implementation plan.
 
 | Field | Value |
 | :--- | :--- |
-| Date | 2026-10-02 |
-| Branch | `master` |
-| Last committed HEAD | `3d16eaf` — `docs(fmn): archive phase 3 implementation plan v2` |
+| Date | 2026-10-03 |
+| Branch | `master` (tracking `origin/master`) |
+| Last committed HEAD | `bc94852` — `docs(fmn): close L-01/L-02/L-03 and sync phase 3 docs` |
+| Working tree | **Batch 2C implemented (uncommitted)** |
+| Prior Batch 2B feature commit | `5796e42` — `feat(fmn): implement phase 3 batch 2b — legacy boundary, organize, todo formal path` |
 | Prior Batch 2A feature commit | `fa86bfe` — `feat(fmn): add F3-02 own-history and architecture baseline` |
 | Prior Batch 1 eslint commit | `4b9c928` — `chore(fmn): add eslint flat config` |
-| Phase 3 batch status | **Batch 1 accepted**; **Batch 2A committed**; **Batch 2B implemented** (working tree; not yet committed at doc update) |
-| Verification | `npm run phase3:check` / `test:batch1` / `test:batch2a` / `test:batch2b` / `typecheck` / `lint` / `build` |
+| Phase 3 batch status | **Batch 1 / 2A / 2B completed**; **Batch 2C (2C-1 Destination / 2C-2 「最近」 / 2C-3 Duplicate) completed in working tree** |
+| Verification | `npm run phase3:check` / `test:batch1` / `test:batch2a` / `test:batch2b` / `test:batch2c1` / `test:batch2c2` / `test:batch2c3` / `typecheck` / `lint` |
 
 Related product / decision sources (do not treat as “implemented” unless listed below):
 
@@ -148,7 +150,7 @@ Verification: `scripts/batch1-verify.ts` (`npm run test:batch1`)
 
 | File | Role |
 | :--- | :--- |
-| `parse-query.ts` | Deterministic intent + filter parse; blocks L-01 / L-03 cues |
+| `parse-query.ts` | Deterministic intent + filter parse; Destination / relative Destination-Trip / 「最近」(recentTrip) supported |
 | `run-search.ts` | Server action `runOwnHistorySearch` — auth + parse + DAL; **no** mutations |
 
 #### Companion integration
@@ -186,7 +188,7 @@ Does **not**: rewrite old Todo rows, add `NOT NULL`, change RLS.
 | File | Role |
 | :--- | :--- |
 | `types.ts` | Spec + result view (recordCount ≠ quantitySum; per-currency totals) |
-| `parse-query.ts` | Deterministic parse; explicit price bounds; blocks L-01 Destination / Brand cues / L-03 最近 |
+| `parse-query.ts` | Deterministic parse; explicit price bounds; Destination / 「最近」(recentTrip) supported; Brand cues still unsupported |
 | `compute.ts` | Pure filter/group/sort/aggregate (no DB, no mutations) |
 | `run-organize.ts` | Server entry — reuses `lib/history.searchOwnItems`; no writes |
 
@@ -206,11 +208,77 @@ Does **not**: rewrite old Todo rows, add `NOT NULL`, change RLS.
 
 #### Explicitly blocked / not invented
 
-- Brand intent via explicit `牌子` / `品牌` cues (L-01) — returns unsupported message (no brand vocabulary; bare names alone are not treated as Brand)
-- Destination / relative trip (L-01) — returns unsupported message
-- “最近” window (L-03) — returns unsupported message
+- Brand intent via explicit `牌子` / `品牌` cues — returns unsupported (L-01 keeps Brand BLOCKED; no brand vocabulary; bare names alone are not treated as Brand)
 - Cross-currency sum / FX
 - Any item create/update/delete
+
+---
+
+### Batch 2C-1 — L-01 Destination
+
+**Status:** Implemented in working tree (not committed)
+
+#### Migration
+
+- `supabase/migrations/20261003120000_phase3_trip_destination.sql`
+- `ALTER TABLE public.trips ADD COLUMN destination text`
+- No `NOT NULL`; no historical backfill
+
+#### Trip Create / Edit / Detail
+
+- Types / DAL: `lib/trips/types.ts`, `mutations.ts`, `detail.ts`, `queries.ts`, `stats.ts`
+- Validation: `isTripDestinationFilled` / `normalizeTripDestination` in `lib/trips/validation.ts`
+- `TripForm`: Destination free-text field; **required on create**; edit allows empty (`NULL`) for historical trips; no autocomplete
+- `TripCover` (Trip Detail): shows Destination; empty → `未填写` (not an error state)
+
+#### F3-02 / F3-03 Destination query
+
+- `OwnHistoryQuery.destination` + optional `relativeDestinationTrip` (`latest` / `first`)
+- DAL: `searchOwnItems` filters `trips.destination` via ILIKE `%term%` (NULL does not match)
+- Parse: `lib/trips/destination-parse.ts` + updates to `historical-search/parse-query.ts` / `organize/parse-query.ts`
+- Relative Destination Trip (“上次去日本” / “第一次去…”): resolve one Trip by `start_date` via `lib/trips/resolve-destination-trip.ts` (not latest item)
+- Brand remains BLOCKED (explicit `牌子`/`品牌` → unsupported)
+
+Verification: `scripts/batch2c1-verify.ts` (`npm run test:batch2c1`)
+
+#### Explicitly not in Batch 2C-1
+
+- Brand field / Brand inference / Brand query
+- L-02 Duplicate Detection UI
+- L-03 「最近」 candidate resolution
+- Calendar-year auto window（去年/前年/今年 → ask for explicit date）
+
+---
+
+### Batch 2C-2 — L-03「最近」
+
+**Status:** Implemented in working tree (not committed)
+
+「最近」≠ 时间窗口。= 最近一次 **已开始**（`start_date` ≤ today UTC）且 **有 Shopping Record** 的 Trip。不用 `end_date`，不用 item `purchase_date` 排序。
+
+- Pure resolve: `lib/trips/recent-trip.ts`（max 5, `start_date` DESC）
+- Server: `lib/trips/resolve-recent-trip.ts`
+- Parse flag: `OwnHistoryQuery.recentTrip` — F3-02 / F3-03
+- Valid Trip Entry (started + has records) → use Current Trip, no picker
+- Invalid / Global: 0 → `没有创建过有 record 的旅行`; 1 → use; many → `CandidateSelector` Trip variant, select = execute (no second confirm)
+- UI: `components/companion/CandidateSelector.tsx`
+
+Verification: `scripts/batch2c2-verify.ts` (`npm run test:batch2c2`)
+
+---
+
+### Batch 2C-3 — L-02 Duplicate Detection
+
+**Status:** Implemented in working tree (not committed)
+
+Same Trip Shopping Todo only. Exact AND match: Product + `reference_price`/`reference_currency` + `reference_location`. No auto-merge.
+
+- Pure: `lib/todos/duplicate.ts`
+- Detect before create: `confirmShoppingTodoWrite` + `ShoppingTodoForm` create
+- Prompt: `TodoDuplicatePrompt` — 创建新的 / 使用已有 / 修改已有 / 合并数量（用户决定）
+- Quantity merge: `mergeTodoQuantity` / `confirmMergeTodoQuantity` only after explicit user action
+
+Verification: `scripts/batch2c3-verify.ts` (`npm run test:batch2c3`)
 
 ---
 
@@ -243,7 +311,7 @@ Does **not**: rewrite old Todo rows, add `NOT NULL`, change RLS.
 
 #### Explicitly not in Batch 2B
 
-- L-02 Duplicate Detection equality / auto-merge
+- L-02 Duplicate Detection (decision Closed; equality / prompt UI **not implemented**; auto-merge remains forbidden)
 - Public Product candidate selector (optional; not required this batch)
 - Legacy Todo force-fill of New required fields
 
@@ -273,13 +341,18 @@ Verification: `scripts/batch2b-verify.ts` (`npm run test:batch2b`)
 
 ## 4. Current Blocked Areas
 
-From `docs/phase3-decisions.md` Later Decisions (implementation must not invent closures):
+Closed Later Decisions vs repository implementation:
+
+| ID | Topic | Decision status | Implementation status |
+| :--- | :--- | :--- | :--- |
+| L-01 | Destination / Brand | **Closed** | **Destination implemented** (Batch 2C-1): nullable `trips.destination`, TripForm create-required, Trip Detail / `未填写`, F3-02 / F3-03 ILIKE filter + relative Destination-Trip resolve. Brand remains **BLOCKED** (no `brand` field; explicit `牌子`/`品牌` cues still unsupported). |
+| L-02 | Duplicate detection equality | **Closed** | **Implemented** (Batch 2C-3): same-Trip exact AND match; prompt 发现相似 Todo; no auto-merge; Quantity merge only if user chooses. |
+| L-03 | “最近” semantics | **Closed** | **Implemented** (Batch 2C-2): started + has records; `start_date` DESC; max 5; Current Trip short-circuit; no time window. |
+
+Still Later (do not invent closures):
 
 | ID | Topic | Status | Blocks |
 | :--- | :--- | :--- | :--- |
-| L-01 | Destination / Brand data model semantics | Later | Full Destination matching; Brand beyond explicit `牌子`/`品牌` cues; schema invention |
-| L-02 | Duplicate detection equality rules | Later | Full F3-04 duplicate handling (auto-merge forbidden) |
-| L-03 | “最近” / recent time window definition | Later | Full F3-02 / F3-03 “最近” behavior |
 | L-04 | OCR provider (Layer 2) | Later (Privacy Layer 1 closed) | F3-01 Receipt OCR path |
 | L-05 | STT provider (Layer 2) | Later (Privacy Layer 1 closed) | F3-01 Voice path |
 | L-06 | LLM provider (Layer 2) | Later (Privacy Layer 1 closed) | LLM-assisted F3-01 / F3-05 |
@@ -297,16 +370,15 @@ Additional open inputs (not Later Decisions, but unfinished):
 
 Suggested next coding slices (not started):
 
-- Batch 2B Review / acceptance
 - I-01 / I-02 when multi-write / receipt lifecycle is in scope
 - OCR / STT / LLM only after L-04 / L-05 / L-06 Layer 2 close
 - F3-05 / Agent loop only when explicitly authorized
 
-Remain forbidden until Later closes:
+Remain forbidden:
 
-- Brand / Destination schema invention
-- “最近” product semantics
-- Duplicate auto-merge rules
+- Brand field / Brand inference (L-01 Closed: Brand stays BLOCKED)
+- Duplicate auto-merge (L-02 Closed: prompt only, never auto-merge)
+- OCR / STT / LLM until L-04 / L-05 / L-06 Layer 2 close
 - Agent loop / F3-05 early
 - Converting public `lib/search` into private history
 
@@ -330,7 +402,7 @@ Remain forbidden until Later closes:
    - `docs/phase3-component-library.md`
    - `.cursor/rules/phase3-*.mdc`
 
-4. Do not implement blocked Later Decision features by inventing missing product answers.
+4. Do not implement blocked Later Decision features (L-04 / L-05 / L-06 Layer 2) by inventing missing product answers. Do not invent Brand despite L-01 Destination being implemented.
 
 5. Prefer:
 

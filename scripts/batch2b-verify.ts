@@ -83,19 +83,21 @@ assert.equal(
 assert.equal(classifyCompanionIntent("查 Anessa"), "history");
 
 // --- Organize ---
-section("Organize parse: L-03 / L-01 blocked");
+section("Organize parse: L-03 最近 → recentTrip; calendar-year asks");
 {
   const r = parseOrganizeQuery("帮我整理最近的购物");
-  assert.equal(r.status, "blocked");
-  if (r.status === "blocked") assert.equal(r.code, "L-03");
+  assert.equal(r.status, "ok");
+  if (r.status === "ok") {
+    assert.equal(r.spec.filter.recentTrip, true);
+  }
 }
 {
+  // 去年 is not Destination; require explicit calendar date (not invented year window)
   const r = parseOrganizeQuery("帮我整理去年在日本的购物");
-  assert.equal(r.status, "blocked");
-  if (r.status === "blocked") assert.equal(r.code, "L-01");
+  assert.equal(r.status, "ask");
 }
 
-section("Organize Brand intent (牌子/品牌 cues) → L-01 unsupported");
+section("Organize Brand intent (牌子/品牌 cues) → unsupported");
 {
   const r = parseOrganizeQuery("整理资生堂牌子的购物");
   assert.equal(r.status, "blocked");
@@ -112,13 +114,17 @@ section("Organize Brand intent (牌子/品牌 cues) → L-01 unsupported");
   assert.notEqual(r.status, "ok");
 }
 {
-  // Destination / 最近 unchanged
+  // Destination enabled; 最近 → recentTrip (L-03)
   const dest = parseOrganizeQuery("帮我整理日本的购物");
-  assert.equal(dest.status, "blocked");
-  if (dest.status === "blocked") assert.equal(dest.code, "L-01");
+  assert.equal(dest.status, "ok");
+  if (dest.status === "ok") {
+    assert.equal(dest.spec.filter.destination, "日本");
+  }
   const recent = parseOrganizeQuery("整理最近买的美妆");
-  assert.equal(recent.status, "blocked");
-  if (recent.status === "blocked") assert.equal(recent.code, "L-03");
+  assert.equal(recent.status, "ok");
+  if (recent.status === "ok") {
+    assert.equal(recent.spec.filter.recentTrip, true);
+  }
 }
 
 section("Organize explicit price filter (M1)");

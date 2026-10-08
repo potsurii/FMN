@@ -10,7 +10,9 @@
 import { isCategorySlug } from "@/lib/category";
 import { parseQuantity } from "@/lib/quantity";
 import { createClient } from "@/lib/supabase/server";
-import { createTodo } from "@/lib/todos/mutations";
+import { findSuspectedDuplicates } from "@/lib/todos/duplicate";
+import { createTodo, mergeTodoQuantity } from "@/lib/todos/mutations";
+import { fetchActiveTodosByTripId } from "@/lib/todos/queries";
 import type { ShoppingTodoWithDisplay } from "@/lib/todos/types";
 
 export type ConfirmShoppingTodoWriteInput = {
@@ -23,11 +25,19 @@ export type ConfirmShoppingTodoWriteInput = {
   note: string | null;
   quantity: number;
   imagePath?: string | null;
+  /** Explicit user choice after suspected-duplicate prompt. */
+  duplicateAck?: "create_new";
 };
 
 export type ConfirmShoppingTodoWriteResult =
   | { ok: true; todo: ShoppingTodoWithDisplay }
-  | { ok: false; error: string };
+  | { ok: false; error: string }
+  | {
+      ok: false;
+      error: string;
+      kind: "duplicate";
+      existing: ShoppingTodoWithDisplay[];
+    };
 
 export async function confirmShoppingTodoWrite(
   input: ConfirmShoppingTodoWriteInput,
@@ -102,6 +112,25 @@ export async function confirmShoppingTodoWrite(
   }
 
   try {
+    if (input.duplicateAck !== "create_new") {
+      const existing = await fetchActiveTodosByTripId(supabase, tripId);
+      const matches = findSuspectedDuplicates(existing, {
+        tripId,
+        name,
+        referencePrice: input.referencePrice,
+        referenceCurrency: currency,
+        referenceLocation: location,
+      });
+      if (matches.length > 0) {
+        return {
+          ok: false,
+          error: "发现相似 Todo",
+          kind: "duplicate",
+          existing: matches,
+        };
+      }
+    }
+
     const todo = await createTodo(supabase, {
       tripId,
       name,
@@ -119,6 +148,48 @@ export async function confirmShoppingTodoWrite(
     return { ok: true, todo };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "写入购物代办失败";
+    return { ok: false, error: msg };
+  }
+}
+
+export type MergeTodoQuantityResult =
+  | { ok: true; todo: ShoppingTodoWithDisplay }
+  | { ok: false; error: string };
+
+/** Explicit user Confirm: add draft quantity onto existing Todo. Never auto-called. */
+export async function confirmMergeTodoQuantity(input: {
+  tripId: string;
+  todoId: string;
+  addQuantity: number;
+}): Promise<MergeTodoQuantityResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { ok: false, error: "请先登录后再合并数量" };
+  }
+
+  const { data: trip, error: tripError } = await supabase
+    .from("trips")
+    .select("id, user_id")
+    .eq("id", input.tripId)
+    .maybeSingle();
+
+  if (tripError) {
+    return { ok: false, error: tripError.message };
+  }
+  if (!trip || trip.user_id !== user.id) {
+    return { ok: false, error: "无权修改该旅行的购物代办" };
+  }
+
+  try {
+    const todo = await mergeTodoQuantity(supabase, input);
+    return { ok: true, todo };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "合并数量失败";
     return { ok: false, error: msg };
   }
 }

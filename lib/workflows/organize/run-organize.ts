@@ -7,6 +7,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { searchOwnItems } from "@/lib/history/queries";
+import { resolveRelativeDestinationTrip } from "@/lib/trips/resolve-destination-trip";
+import { resolveRecentTripForUser } from "@/lib/trips/resolve-recent-trip";
+import type { RecentTripCandidate } from "@/lib/trips/recent-trip";
+import { NO_RECENT_RECORD_TRIP_MESSAGE } from "@/lib/trips/recent-trip";
 import { buildOrganizeResult } from "./compute";
 import { parseOrganizeQuery } from "./parse-query";
 import type { OrganizeResultView } from "./types";
@@ -15,11 +19,19 @@ const ORGANIZE_FETCH_LIMIT = 200;
 
 export type RunOrganizeResult =
   | { ok: true; view: OrganizeResultView }
-  | { ok: false; error: string; kind: "blocked" | "ask" | "auth" | "error" };
+  | { ok: false; error: string; kind: "blocked" | "ask" | "auth" | "error" }
+  | {
+      ok: false;
+      error: string;
+      kind: "choose_trip";
+      candidates: RecentTripCandidate[];
+    };
 
 export async function runOrganize(input: {
   text: string;
   defaultTripId?: string | null;
+  entry?: "global" | "trip";
+  selectedTripId?: string | null;
 }): Promise<RunOrganizeResult> {
   const supabase = await createClient();
   const {
@@ -39,8 +51,76 @@ export async function runOrganize(input: {
     return { ok: false, error: parsed.message, kind: "ask" };
   }
 
-  const spec = { ...parsed.spec };
-  if (!spec.filter.tripId && input.defaultTripId) {
+  const spec = {
+    ...parsed.spec,
+    filter: { ...parsed.spec.filter },
+  };
+
+  if (spec.filter.recentTrip && !spec.filter.tripId) {
+    if (input.selectedTripId) {
+      spec.filter.tripId = input.selectedTripId;
+      delete spec.filter.recentTrip;
+    } else {
+      try {
+        const resolved = await resolveRecentTripForUser(supabase, user.id, {
+          entry: input.entry ?? (input.defaultTripId ? "trip" : "global"),
+          currentTripId: input.defaultTripId ?? null,
+        });
+        if (resolved.status === "none") {
+          return {
+            ok: false,
+            error: resolved.message || NO_RECENT_RECORD_TRIP_MESSAGE,
+            kind: "ask",
+          };
+        }
+        if (resolved.status === "choose") {
+          return {
+            ok: false,
+            error: "请选择一次旅行以整理最近的购物记录。",
+            kind: "choose_trip",
+            candidates: resolved.candidates,
+          };
+        }
+        spec.filter.tripId = resolved.tripId;
+        delete spec.filter.recentTrip;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "整理失败，请重试";
+        return { ok: false, error: msg, kind: "error" };
+      }
+    }
+  }
+
+  if (
+    spec.filter.relativeDestinationTrip &&
+    spec.filter.destination &&
+    !spec.filter.tripId
+  ) {
+    try {
+      const tripId = await resolveRelativeDestinationTrip(
+        supabase,
+        user.id,
+        spec.filter.destination,
+        spec.filter.relativeDestinationTrip,
+      );
+      if (!tripId) {
+        return {
+          ok: true,
+          view: buildOrganizeResult([], spec, {
+            hasMore: false,
+            tripNames: new Map(),
+          }),
+        };
+      }
+      spec.filter.tripId = tripId;
+      delete spec.filter.destination;
+      delete spec.filter.relativeDestinationTrip;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "整理失败，请重试";
+      return { ok: false, error: msg, kind: "error" };
+    }
+  }
+
+  if (!spec.filter.tripId && !parsed.spec.filter.recentTrip && input.defaultTripId) {
     spec.filter = { ...spec.filter, tripId: input.defaultTripId };
   }
 

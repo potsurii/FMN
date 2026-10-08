@@ -4,7 +4,7 @@ import { buildTripStats } from "./stats";
 import type { ItemRow, TripRow, TripWithStats } from "./types";
 
 const TRIP_SELECT =
-  "id, user_id, name, start_date, end_date, main_image, visibility, travel_status, created_at";
+  "id, user_id, name, start_date, end_date, main_image, destination, visibility, travel_status, created_at";
 
 async function signTripImages(
   supabase: SupabaseClient,

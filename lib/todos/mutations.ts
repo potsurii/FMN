@@ -75,6 +75,49 @@ export async function createTodo(
   return toDisplay(supabase, data as ShoppingTodoRow);
 }
 
+/**
+ * User-initiated Quantity merge onto an existing same-Trip Todo.
+ * Never called implicitly from createTodo.
+ */
+export async function mergeTodoQuantity(
+  supabase: SupabaseClient,
+  input: { tripId: string; todoId: string; addQuantity: number },
+): Promise<ShoppingTodoWithDisplay> {
+  const add = resolveQuantity(input.addQuantity);
+  const { data: row, error: loadError } = await supabase
+    .from("shopping_todos")
+    .select(TODO_SELECT)
+    .eq("id", input.todoId)
+    .eq("trip_id", input.tripId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (loadError) {
+    throw new Error(loadError.message);
+  }
+  if (!row) {
+    throw new Error("购物代办不存在");
+  }
+
+  const current = resolveQuantity((row as ShoppingTodoRow).quantity);
+  const existing = row as ShoppingTodoRow;
+  return updateTodo(supabase, {
+    tripId: input.tripId,
+    todoId: input.todoId,
+    name: existing.name,
+    imagePath: existing.image,
+    category: (existing.category as CategorySlug | null) ?? null,
+    referencePrice:
+      existing.reference_price === null
+        ? null
+        : Number(existing.reference_price),
+    referenceCurrency: existing.reference_currency,
+    referenceLocation: existing.reference_location,
+    note: existing.note,
+    quantity: current + add,
+  });
+}
+
 export async function updateTodo(
   supabase: SupabaseClient,
   input: UpdateTodoInput,

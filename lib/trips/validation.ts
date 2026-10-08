@@ -6,6 +6,19 @@ export function isTripDateRangeValid(
   return endDate >= startDate;
 }
 
+/** Application-layer Destination for new trips (DB remains nullable). */
+export function isTripDestinationFilled(destination: string): boolean {
+  return destination.trim().length > 0;
+}
+
+/** Normalize Destination for write: trimmed text, or null when empty. */
+export function normalizeTripDestination(
+  destination: string,
+): string | null {
+  const trimmed = destination.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export type TripDatesCoverItemsResult =
   | { ok: true }
   | { ok: false; message: string; sampleDate: string; count: number };

@@ -16,6 +16,8 @@ import type { TravelStatus, TripWithStats, Visibility } from "@/lib/trips/types"
 import {
   assertTripDatesCoverItems,
   isTripDateRangeValid,
+  isTripDestinationFilled,
+  normalizeTripDestination,
 } from "@/lib/trips/validation";
 import { countPublicItems } from "@/lib/trips/visibility";
 import { uploadUserImage } from "@/lib/storage/upload";
@@ -51,6 +53,7 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
   const successBase = mode === "edit" && trip ? `/trips/${trip.id}` : null;
 
   const [name, setName] = useState(trip?.name ?? "");
+  const [destination, setDestination] = useState(trip?.destination ?? "");
   const [startDate, setStartDate] = useState(trip?.startDate ?? todayIso());
   const [endDate, setEndDate] = useState(trip?.endDate ?? todayIso());
   const [visibility, setVisibility] = useState<Visibility>(
@@ -75,6 +78,10 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
   function validateBasic(): boolean {
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = "请填写旅行名称";
+    // New Trip: Destination required. Historical edit: NULL allowed (no force-fill).
+    if (mode === "create" && !isTripDestinationFilled(destination)) {
+      next.destination = "请填写目的地";
+    }
     if (!startDate) next.startDate = "请选择开始日期";
     if (!endDate) next.endDate = "请选择结束日期";
     if (startDate && endDate && !isTripDateRangeValid(startDate, endDate)) {
@@ -147,6 +154,7 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
           name: name.trim(),
           startDate,
           endDate,
+          destination: normalizeTripDestination(destination),
           mainImagePath,
           visibility,
           travelStatus,
@@ -159,6 +167,7 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
           name: name.trim(),
           startDate,
           endDate,
+          destination: destination.trim(),
           mainImagePath,
           visibility,
           travelStatus,
@@ -192,6 +201,28 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
             onChange={(e) => setName(e.target.value)}
             hasError={Boolean(errors.name)}
             placeholder="例如：Bangkok Shopping Trip"
+            disabled={saving}
+          />
+        </FormField>
+
+        <FormField
+          label="目的地"
+          htmlFor="trip-destination"
+          required={mode === "create"}
+          hint={
+            mode === "edit"
+              ? "历史旅行可留空；不强制补齐"
+              : undefined
+          }
+          error={errors.destination}
+        >
+          <Input
+            id="trip-destination"
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            hasError={Boolean(errors.destination)}
+            placeholder="例如：东京、Bangkok"
+            autoComplete="off"
             disabled={saving}
           />
         </FormField>

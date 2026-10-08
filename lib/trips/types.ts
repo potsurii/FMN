@@ -8,6 +8,7 @@ export type TripRow = {
   start_date: string;
   end_date: string;
   main_image: string | null;
+  destination: string | null;
   visibility: Visibility;
   travel_status: TravelStatus;
   created_at: string;
@@ -36,6 +37,7 @@ export type TripWithStats = {
   endDate: string;
   mainImagePath: string | null;
   mainImageUrl: string | null;
+  destination: string | null;
   visibility: Visibility;
   travelStatus: TravelStatus;
   itemCount: number;

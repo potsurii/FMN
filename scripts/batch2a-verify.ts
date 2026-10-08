@@ -59,23 +59,31 @@ section("Allowed parser fields");
   }
 }
 
-section("最近 blocked (L-03)");
+section("最近 parse (L-03 recentTrip)");
 {
   const r = parseOwnHistoryQuery("最近买的");
-  assert.equal(r.status, "blocked");
-  if (r.status === "blocked") assert.equal(r.code, "L-03");
+  assert.equal(r.status, "ok");
+  if (r.status === "ok") {
+    assert.equal(r.query.recentTrip, true);
+  }
 }
 
-section("Destination / relative trip blocked (L-01)");
+section("Destination / relative trip parse (L-01 Destination)");
 {
   const r = parseOwnHistoryQuery("上次去日本买的");
-  assert.equal(r.status, "blocked");
-  if (r.status === "blocked") assert.equal(r.code, "L-01");
+  assert.equal(r.status, "ok");
+  if (r.status === "ok") {
+    assert.equal(r.query.destination, "日本");
+    assert.equal(r.query.relativeDestinationTrip, "latest");
+  }
 }
 {
   const r = parseOwnHistoryQuery("日本买过什么");
-  assert.equal(r.status, "blocked");
-  if (r.status === "blocked") assert.equal(r.code, "L-01");
+  assert.equal(r.status, "ok");
+  if (r.status === "ok") {
+    assert.equal(r.query.destination, "日本");
+    assert.equal(r.query.relativeDestinationTrip, undefined);
+  }
 }
 
 section("No FX — price without currency asks");

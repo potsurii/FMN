@@ -47,6 +47,7 @@ function toTripCardModel(trip: PublicTripSearchResult): TripWithStats {
     endDate: trip.endDate,
     mainImagePath: trip.mainImagePath,
     mainImageUrl: trip.mainImageUrl,
+    destination: null,
     visibility: trip.visibility,
     travelStatus: trip.travelStatus,
     itemCount: 0,

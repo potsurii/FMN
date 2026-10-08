@@ -46,6 +46,7 @@ export function buildTripStats(
       endDate: trip.end_date,
       mainImagePath: trip.main_image,
       mainImageUrl: imageUrls.get(trip.id) ?? null,
+      destination: trip.destination ?? null,
       visibility: trip.visibility,
       travelStatus: trip.travel_status,
       itemCount: tripItems.length,

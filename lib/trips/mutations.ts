@@ -6,6 +6,8 @@ export type CreateTripInput = {
   name: string;
   startDate: string;
   endDate: string;
+  /** Required by application layer for new trips; DB remains nullable. */
+  destination: string;
   mainImagePath?: string | null;
   visibility?: Visibility;
   travelStatus?: TravelStatus;
@@ -16,13 +18,15 @@ export type UpdateTripInput = {
   name: string;
   startDate: string;
   endDate: string;
+  /** Null allowed for historical trips that never had Destination. */
+  destination: string | null;
   mainImagePath?: string | null;
   visibility: Visibility;
   travelStatus: TravelStatus;
 };
 
 const TRIP_SELECT =
-  "id, user_id, name, start_date, end_date, main_image, visibility, travel_status, created_at";
+  "id, user_id, name, start_date, end_date, main_image, destination, visibility, travel_status, created_at";
 
 export async function createTrip(
   supabase: SupabaseClient,
@@ -35,6 +39,7 @@ export async function createTrip(
       name: input.name,
       start_date: input.startDate,
       end_date: input.endDate,
+      destination: input.destination,
       main_image: input.mainImagePath ?? null,
       visibility: input.visibility ?? "private",
       travel_status: input.travelStatus ?? "upcoming",
@@ -59,6 +64,7 @@ export async function updateTrip(
       name: input.name,
       start_date: input.startDate,
       end_date: input.endDate,
+      destination: input.destination,
       main_image: input.mainImagePath ?? null,
       visibility: input.visibility,
       travel_status: input.travelStatus,

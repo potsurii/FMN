@@ -1,11 +1,18 @@
 /**
  * F3-03 rule-assisted organize parse — deterministic only.
- * Blocks L-01 Destination / Brand / L-03 最近.
+ * Destination: trips.destination ILIKE. Brand remains unsupported.
+ * 「最近」 → recentTrip (L-03), not a calendar window.
  * Brand = explicit 牌子/品牌 cues only (no brand vocabulary).
  */
 
 import { isCategorySlug, type CategorySlug } from "@/lib/category";
 import type { OwnHistoryQuery } from "@/lib/history/types";
+import {
+  detectRelativeDestinationTripMode,
+  extractDestination,
+  hasCalendarYearCue,
+  hasSeveralTripsCue,
+} from "@/lib/trips/destination-parse";
 import type { OrganizeGroupBy, OrganizeSortBy, OrganizeSpec } from "./types";
 
 export type OrganizeParseResult =
@@ -14,9 +21,6 @@ export type OrganizeParseResult =
   | { status: "ask"; message: string };
 
 const RECENT_RE = /最近/;
-const RELATIVE_TRIP_RE = /上次去|第一次去|前几次|去年|前年/;
-const DESTINATION_RE =
-  /(?:去)?(?:日本|泰国|韩国|美国|中国|巴黎|东京|大阪|曼谷|首尔|京都|纽约|伦敦)(?:买|购|旅行|出差|的购物)?/;
 
 /**
  * Explicit Brand-intent structural cues only.
@@ -169,6 +173,15 @@ export function extractOrganizePriceFilter(text: string): {
 function summarize(filter: OwnHistoryQuery, groupBy: OrganizeGroupBy): string {
   const parts: string[] = [];
   if (filter.category) parts.push(`分类 ${filter.category}`);
+  if (filter.destination) {
+    if (filter.relativeDestinationTrip === "latest") {
+      parts.push(`上次「${filter.destination}」旅行`);
+    } else if (filter.relativeDestinationTrip === "first") {
+      parts.push(`第一次「${filter.destination}」旅行`);
+    } else {
+      parts.push(`目的地「${filter.destination}」`);
+    }
+  }
   if (filter.currency) parts.push(`货币 ${filter.currency}`);
   if (filter.minPrice != null || filter.maxPrice != null) {
     const lo = filter.minPrice != null ? String(filter.minPrice) : "…";
@@ -176,6 +189,7 @@ function summarize(filter: OwnHistoryQuery, groupBy: OrganizeGroupBy): string {
     parts.push(`价格 ${lo} ~ ${hi}`);
   }
   if (filter.location) parts.push(`地点「${filter.location}」`);
+  if (filter.recentTrip) parts.push("最近一次已开始且有记录的旅行");
   if (filter.tripId) parts.push(`旅行已指定`);
   if (filter.purchaseDateFrom || filter.purchaseDateTo) {
     parts.push(
@@ -196,36 +210,50 @@ export function parseOrganizeQuery(text: string): OrganizeParseResult {
     };
   }
 
-  if (RECENT_RE.test(raw)) {
-    return {
-      status: "blocked",
-      code: "L-03",
-      message:
-        "当前无法按「最近」整理（L-03 未关闭）。请提供明确日期范围、分类、货币或旅行。",
-    };
-  }
-
   if (BRAND_INTENT_RE.test(raw)) {
     return {
       status: "blocked",
       code: "L-01",
       message:
-        "当前无法按品牌整理（L-01 未关闭）。请改用分类、地点、货币、明确旅行或日历日期。",
+        "当前不支持按品牌整理。请改用分类、地点、目的地、货币、明确旅行或日历日期。",
     };
   }
 
-  if (RELATIVE_TRIP_RE.test(raw) || DESTINATION_RE.test(raw)) {
+  if (hasSeveralTripsCue(raw)) {
     return {
-      status: "blocked",
-      code: "L-01",
+      status: "ask",
       message:
-        "当前无法按目的地或相对时间/旅行语义整理（L-01 未关闭）。请改用明确旅行选择、分类、地点或日历日期。",
+        "「前几次」范围不明确。请改用「上次去…」「第一次去…」、目的地，或选择明确旅行。",
+    };
+  }
+
+  const dateMatch = raw.match(DATE_RE);
+  if (hasCalendarYearCue(raw) && !dateMatch) {
+    return {
+      status: "ask",
+      message:
+        "请使用明确的日历日期（例如 2025-01-10），当前不按「去年/前年/今年」自动推算年份。",
     };
   }
 
   const filter: OwnHistoryQuery = {};
+  if (RECENT_RE.test(raw)) {
+    filter.recentTrip = true;
+  }
   const category = extractCategory(raw);
   if (category) filter.category = category;
+
+  const destination = extractDestination(raw);
+  if (destination) {
+    filter.destination = destination;
+    const relative = detectRelativeDestinationTripMode(raw);
+    if (relative) filter.relativeDestinationTrip = relative;
+  } else if (detectRelativeDestinationTripMode(raw)) {
+    return {
+      status: "ask",
+      message: "请说明目的地，例如「整理上次去日本的购物」。",
+    };
+  }
 
   const priceFilter = extractOrganizePriceFilter(raw);
   if (priceFilter.minPrice != null) filter.minPrice = priceFilter.minPrice;
@@ -244,15 +272,14 @@ export function parseOrganizeQuery(text: string): OrganizeParseResult {
   const tripId = raw.match(UUID_RE)?.[1];
   if (tripId) filter.tripId = tripId;
 
-  const date = raw.match(DATE_RE);
-  if (date) {
-    const iso = `${date[1]}-${pad2(date[2])}-${pad2(date[3])}`;
+  if (dateMatch) {
+    const iso = `${dateMatch[1]}-${pad2(dateMatch[2])}-${pad2(dateMatch[3])}`;
     filter.purchaseDateFrom = iso;
     filter.purchaseDateTo = iso;
   }
 
   const locMatch = raw.match(
-    /(?:地点|购买地点|在)\s*[:：]?\s*([A-Za-z0-9\u4e00-\u9fff][\w\u4e00-\u9fff ·-]{1,40})/,
+    /(?:地点|购买地点)\s*[:：]?\s*([A-Za-z0-9\u4e00-\u9fff][\w\u4e00-\u9fff ·-]{1,40})/,
   );
   if (locMatch?.[1]) filter.location = locMatch[1].trim();
 

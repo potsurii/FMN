@@ -8,11 +8,13 @@ import { CompanionLauncher } from "@/components/companion/CompanionLauncher";
 import { CompanionSurface } from "@/components/companion/CompanionSurface";
 import { HistoryResultSection } from "@/components/companion/HistoryResultSection";
 import { OrganizeResultSection } from "@/components/companion/OrganizeResultSection";
+import { CandidateSelector } from "@/components/companion/CandidateSelector";
 import {
   RecordDraftReview,
   type TripOption,
 } from "@/components/companion/RecordDraftReview";
 import { TodoDraftReview } from "@/components/companion/TodoDraftReview";
+import { TodoDuplicatePrompt } from "@/components/companion/TodoDuplicatePrompt";
 import { isExplicitConfirmIntent } from "@/lib/companion/confirm-intent";
 import {
   clearDraft,
@@ -36,6 +38,7 @@ import type {
   TaskState,
 } from "@/lib/companion/types";
 import type { ItemWithDisplay } from "@/lib/items/types";
+import type { ShoppingTodoWithDisplay } from "@/lib/todos/types";
 import { confirmShoppingRecordWrite } from "@/lib/workflows/record-input/confirm-write";
 import {
   buildShoppingRecordDraftFromText,
@@ -45,7 +48,8 @@ import { classifyCompanionIntent } from "@/lib/workflows/historical-search/parse
 import { runOwnHistorySearch } from "@/lib/workflows/historical-search/run-search";
 import { runOrganize } from "@/lib/workflows/organize/run-organize";
 import type { OrganizeResultView } from "@/lib/workflows/organize/types";
-import { confirmShoppingTodoWrite } from "@/lib/workflows/todo-planning/confirm-write";
+import type { RecentTripCandidate } from "@/lib/trips/recent-trip";
+import { confirmShoppingTodoWrite, confirmMergeTodoQuantity } from "@/lib/workflows/todo-planning/confirm-write";
 import {
   buildShoppingTodoDraftFromText,
   getShoppingTodoDraftMissing,
@@ -88,6 +92,14 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   const [organizeView, setOrganizeView] = useState<OrganizeResultView | null>(
     null,
   );
+  const [recentPick, setRecentPick] = useState<{
+    flow: "history" | "organize";
+    text: string;
+    candidates: RecentTripCandidate[];
+  } | null>(null);
+  const [todoDuplicates, setTodoDuplicates] = useState<
+    ShoppingTodoWithDisplay[] | null
+  >(null);
 
   const contextLabel = useMemo(() => {
     if (context.entry === "trip" && context.tripName) {
@@ -135,6 +147,8 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     setWriteError(null);
     setHistoryView(null);
     setOrganizeView(null);
+    setRecentPick(null);
+    setTodoDuplicates(null);
   }
 
   function handleClose() {
@@ -156,6 +170,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   function startDraftFromText(raw: string) {
     setHistoryView(null);
     setOrganizeView(null);
+    setRecentPick(null);
     setTodoDraft(null);
     const trip =
       context.tripId != null
@@ -194,7 +209,9 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   function startTodoDraftFromText(raw: string) {
     setHistoryView(null);
     setOrganizeView(null);
+    setRecentPick(null);
     setDraft(null);
+    setTodoDuplicates(null);
     const trip =
       context.tripId != null
         ? trips.find((t) => t.id === context.tripId) ?? null
@@ -233,17 +250,32 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     );
   }
 
-  async function runHistorySearch(raw: string) {
+  async function runHistorySearch(
+    raw: string,
+    selectedTripId?: string | null,
+  ) {
     setSearching(true);
     setHistoryView(null);
     setOrganizeView(null);
+    if (!selectedTripId) setRecentPick(null);
     try {
       const result = await runOwnHistorySearch({
         text: raw,
         defaultTripId: context.entry === "trip" ? context.tripId : null,
+        entry: context.entry,
+        selectedTripId: selectedTripId ?? null,
       });
 
       if (!result.ok) {
+        if (result.kind === "choose_trip") {
+          setRecentPick({
+            flow: "history",
+            text: raw,
+            candidates: result.candidates,
+          });
+          appendMessage("assistant", result.error);
+          return;
+        }
         appendMessage(
           result.kind === "blocked" ? "system" : "assistant",
           result.error,
@@ -251,6 +283,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
         return;
       }
 
+      setRecentPick(null);
       setHistoryView({
         summary: result.summary,
         items: result.items,
@@ -270,17 +303,32 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     }
   }
 
-  async function runOrganizeFlow(raw: string) {
+  async function runOrganizeFlow(
+    raw: string,
+    selectedTripId?: string | null,
+  ) {
     setSearching(true);
     setOrganizeView(null);
     setHistoryView(null);
+    if (!selectedTripId) setRecentPick(null);
     try {
       const result = await runOrganize({
         text: raw,
         defaultTripId: context.entry === "trip" ? context.tripId : null,
+        entry: context.entry,
+        selectedTripId: selectedTripId ?? null,
       });
 
       if (!result.ok) {
+        if (result.kind === "choose_trip") {
+          setRecentPick({
+            flow: "organize",
+            text: raw,
+            candidates: result.candidates,
+          });
+          appendMessage("assistant", result.error);
+          return;
+        }
         appendMessage(
           result.kind === "blocked" ? "system" : "assistant",
           result.error,
@@ -288,6 +336,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
         return;
       }
 
+      setRecentPick(null);
       setOrganizeView(result.view);
       appendMessage(
         "assistant",
@@ -365,7 +414,10 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     }
   }
 
-  async function runTodoFormalWrite(from: "button" | "intent") {
+  async function runTodoFormalWrite(
+    from: "button" | "intent",
+    duplicateAck?: "create_new",
+  ) {
     if (!todoDraft) return;
     const { complete, missing } = getShoppingTodoDraftMissing(todoDraft);
     if (!complete) {
@@ -392,7 +444,14 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
         note: todoDraft.note.trim() ? todoDraft.note.trim() : null,
         quantity: todoDraft.quantity,
         imagePath: todoDraft.imagePath,
+        duplicateAck,
       });
+
+      if (!result.ok && "kind" in result && result.kind === "duplicate") {
+        setTodoDuplicates(result.existing);
+        appendMessage("assistant", "发现相似 Todo。请选择如何处理，系统不会自动合并。");
+        return;
+      }
 
       if (!result.ok) {
         setWriteError(result.error);
@@ -403,23 +462,50 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
         return;
       }
 
-      if (task) {
-        completeTaskAndClearDraft(task);
-      } else {
-        clearDraft("shopping_todo", todoDraft.id);
-        clearTaskState();
-      }
-      setTodoDraft(null);
-      setTask(null);
-      appendMessage(
-        "assistant",
-        `已写入正式购物代办「${result.todo.name}」。`,
-      );
-      router.refresh();
+      finishTodoWrite(result.todo.name);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "写入失败，请重试";
       setWriteError(msg);
       appendMessage("system", `写入失败：${msg}。草稿已保留。`);
+    } finally {
+      setWriting(false);
+    }
+  }
+
+  function finishTodoWrite(name: string) {
+    if (!todoDraft) return;
+    if (task) {
+      completeTaskAndClearDraft(task);
+    } else {
+      clearDraft("shopping_todo", todoDraft.id);
+      clearTaskState();
+    }
+    setTodoDraft(null);
+    setTodoDuplicates(null);
+    setTask(null);
+    appendMessage("assistant", `已写入正式购物代办「${name}」。`);
+    router.refresh();
+  }
+
+  async function handleMergeDuplicateQuantity(existing: ShoppingTodoWithDisplay) {
+    if (!todoDraft) return;
+    setWriting(true);
+    setWriteError(null);
+    try {
+      const result = await confirmMergeTodoQuantity({
+        tripId: existing.tripId,
+        todoId: existing.id,
+        addQuantity: todoDraft.quantity,
+      });
+      if (!result.ok) {
+        setWriteError(result.error);
+        appendMessage("system", `合并数量失败：${result.error}`);
+        return;
+      }
+      finishTodoWrite(`${result.todo.name}（已合并数量）`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "合并数量失败";
+      setWriteError(msg);
     } finally {
       setWriting(false);
     }
@@ -497,6 +583,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     setTodoDraft(null);
     setTask(null);
     setWriteError(null);
+    setTodoDuplicates(null);
     appendMessage("system", "已取消当前草稿。");
   }
 
@@ -576,6 +663,29 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
             ))}
           </div>
 
+          {recentPick && !hasAnyDraft ? (
+            <CandidateSelector
+              variant="trip"
+              title="选择旅行"
+              description="选择后将直接查询，无需再次确认。"
+              candidates={recentPick.candidates.map((c) => ({
+                id: c.id,
+                title: c.name,
+                meta: c.startDate,
+              }))}
+              disabled={searching}
+              onSelect={(id) => {
+                const pending = recentPick;
+                setRecentPick(null);
+                if (pending.flow === "history") {
+                  void runHistorySearch(pending.text, id);
+                } else {
+                  void runOrganizeFlow(pending.text, id);
+                }
+              }}
+            />
+          ) : null}
+
           {historyView && !hasAnyDraft ? (
             <HistoryResultSection
               summary={historyView.summary}
@@ -601,15 +711,61 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
           ) : null}
 
           {todoDraft ? (
-            <TodoDraftReview
-              draft={todoDraft}
-              trips={trips}
-              writeError={writeError}
-              writing={writing}
-              onChange={handleTodoDraftChange}
-              onConfirm={() => void runTodoFormalWrite("button")}
-              onCancel={handleCancelDraft}
-            />
+            <>
+              {todoDuplicates ? (
+                <TodoDuplicatePrompt
+                  existing={todoDuplicates}
+                  draftQuantity={todoDraft.quantity}
+                  busy={writing}
+                  onCreateNew={() => {
+                    setTodoDuplicates(null);
+                    void runTodoFormalWrite("button", "create_new");
+                  }}
+                  onUseExisting={(todo) => {
+                    if (task) completeTaskAndClearDraft(task);
+                    else {
+                      clearDraft("shopping_todo", todoDraft.id);
+                      clearTaskState();
+                    }
+                    setTodoDraft(null);
+                    setTodoDuplicates(null);
+                    setTask(null);
+                    appendMessage(
+                      "assistant",
+                      `已使用已有代办「${todo.name}」，未创建新代办。`,
+                    );
+                  }}
+                  onEditExisting={(todo) => {
+                    if (task) completeTaskAndClearDraft(task);
+                    else {
+                      clearDraft("shopping_todo", todoDraft.id);
+                      clearTaskState();
+                    }
+                    setTodoDraft(null);
+                    setTodoDuplicates(null);
+                    setTask(null);
+                    router.push(`/trips/${todo.tripId}/todos/${todo.id}/edit`);
+                  }}
+                  onMergeQuantity={(todo) => {
+                    void handleMergeDuplicateQuantity(todo);
+                  }}
+                  onCancel={() => {
+                    setTodoDuplicates(null);
+                    appendMessage("assistant", "已取消重复处理，草稿仍保留。");
+                  }}
+                />
+              ) : (
+                <TodoDraftReview
+                  draft={todoDraft}
+                  trips={trips}
+                  writeError={writeError}
+                  writing={writing}
+                  onChange={handleTodoDraftChange}
+                  onConfirm={() => void runTodoFormalWrite("button")}
+                  onCancel={handleCancelDraft}
+                />
+              )}
+            </>
           ) : null}
 
           <div className="mt-auto space-y-2 border-t border-[var(--color-line)] pt-3">

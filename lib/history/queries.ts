@@ -87,6 +87,14 @@ export async function searchOwnItems(
     }
   }
 
+  if (query.destination?.trim()) {
+    const term = sanitizeHistoryTerm(query.destination);
+    if (term) {
+      // LOWER(destination) LIKE LOWER(%input%) via ILIKE; NULL rows do not match.
+      q = q.ilike("trips.destination", toHistoryIlikePattern(term));
+    }
+  }
+
   if (query.purchaseDateFrom?.trim()) {
     q = q.gte("purchase_date", query.purchaseDateFrom.trim());
   }

@@ -52,6 +52,10 @@ export function TripCover({ trip, className = "" }: TripCoverProps) {
           </Heading>
           <Text className="text-[var(--color-ink-muted)]">{dateRange}</Text>
           <Text className="text-sm text-[var(--color-ink-muted)]">
+            目的地：
+            {trip.destination?.trim() ? trip.destination.trim() : "未填写"}
+          </Text>
+          <Text className="text-sm text-[var(--color-ink-muted)]">
             {visibilityLabel(trip.visibility)}
             {" · "}
             {travelStatusLabel(trip.travelStatus)}
