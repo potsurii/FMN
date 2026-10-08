@@ -5,7 +5,7 @@ This is a **map**, not a product spec and not an implementation plan.
 
 | Field | Value |
 | :--- | :--- |
-| Guide date | 2026-10-02 |
+| Guide date | 2026-10-08 |
 | Read first for status | [`docs/phase3-current-state.md`](phase3-current-state.md) |
 | Read for structure | [`docs/fmn-architecture-map.md`](fmn-architecture-map.md), [`docs/fmn-architecture-guide.md`](fmn-architecture-guide.md) |
 | Read for cleanup candidates | [`docs/fmn-cleaning-report.md`](fmn-cleaning-report.md) |
@@ -22,10 +22,13 @@ Do not rewrite those documents here — follow links when you need depth.
 | Active phase | **Phase 3 — Companion** |
 | Completed foundation | Phase 1 (core record), Phase 2 (public discovery / social / todo) |
 | Batch 1 | **Accepted** — data foundation, Companion shell, F3-01 text Draft→Confirm→Write |
-| Batch 2A | **Implemented in working tree** — F3-02 own-history foundation (read-only) |
-| Last committed HEAD | `4b9c928` — `chore(fmn): add eslint flat config` |
-| Branch vs remote | `master` ahead of `origin/master` by 1 (eslint commit); **Batch 2A + many docs/scripts still uncommitted** |
-| Safe to continue | Read architecture + cleaning report; commit a stable checkpoint when authorized; extend Phase 3 only after understanding boundaries — do not invent L-01–L-06 closures |
+| Batch 2A | **Committed** — F3-02 own-history foundation (read-only) |
+| Batch 2B | **Committed** — Legacy Boundary UTC, F3-03 Organize, F3-04 Todo formal |
+| Batch 2C | **Committed** — L-01 Destination, L-03 「最近」, L-02 Duplicate |
+| Last committed HEAD | `0a23547` — `feat(fmn): complete phase 3 batch 2c` |
+| Branch vs remote | `master` == `origin/master` (in sync) |
+| Working tree | clean |
+| Safe to continue | Read architecture + cleaning report; Batch 3 (I-01 / I-02) next when authorized — do not invent L-04–L-06 Layer 2 closures; Brand remains BLOCKED |
 
 **What is safe to continue after understanding**
 
@@ -66,7 +69,7 @@ FMN
 | | |
 | :--- | :--- |
 | **Goal** | Intelligent interaction layer on FMN (not a separate chatbot product) |
-| **Main modules** | Companion shell, Draft/Task state, F3-01 text Confirm write, F3-02 own-history, quantity, receipts foundation |
+| **Main modules** | Companion shell, Draft/Task state, F3-01 text Confirm write, F3-02 own-history + Destination + 最近, F3-03 Organize, F3-04 Todo formal + Duplicate, quantity, receipts foundation |
 | **Main folders** | `components/companion`, `lib/companion`, `lib/workflows`, `lib/history`, `lib/receipts`, `lib/quantity.ts`, Phase 3 docs + `.cursor/rules/phase3-*.mdc` |
 
 Inherited forever: multi-currency independent (no live FX); purchase location is text; Public/Private rules; Companion is in-page Surface (no `/companion` route).
@@ -80,7 +83,7 @@ Inherited forever: multi-currency independent (no live FX); purchase location is
 | `app/` | User entry routes (pages compose data + UI; mount Companion where allowed) |
 | `components/` | UI building blocks (reuse before inventing new) |
 | `lib/` | Business / domain logic (queries, mutations, types, validation) |
-| `lib/workflows/` | Multi-step Companion processes (Confirm write, own-history search) |
+| `lib/workflows/` | Multi-step Companion processes (Confirm write, own-history, organize, todo planning) |
 | `supabase/` | Database schema, migrations, storage buckets, RLS |
 | `docs/` | Product, design, decisions, architecture maps, **current-state** |
 | `scripts/` | Verification and scan tools (not product runtime) |
@@ -126,7 +129,9 @@ Page → Component → (Workflow) → Domain lib → Supabase → DB / Storage
 | Workflow ≠ Agent | Workflows execute bounded capabilities; Agent (F3-05) is not implemented and must not bypass Workflow |
 | Component reuse | Prefer existing cards/forms; no `AIButton` / `AIInput` / parallel AI UI family |
 | No `/companion` route | Companion is in-page Surface on Home + Trip Detail |
-| No invented Later Decisions | Brand / Destination / 「最近」 / OCR / STT / LLM stay blocked until L-01–L-06 close |
+| No invented Later Decisions | L-01 / L-02 / L-03 Closed and implemented. L-04 / L-05 / L-06 Layer 2 still Later (OCR / STT / LLM blocked). Brand remains BLOCKED (L-01). |
+| Duplicate Detection | L-02: prompt only (same-Trip exact AND on Product / price+currency / reference_location); never auto-merge |
+| Trip Destination | L-01: `trips.destination` text, nullable; user-entered; ILIKE match; no autocomplete; no cross-language |
 
 Automation: `npm run phase3:check`.
 
@@ -146,17 +151,16 @@ From [`docs/fmn-cleaning-report.md`](fmn-cleaning-report.md) only. **No deletion
 
 ### Future (known gaps, not cleanup)
 
-- Legacy Boundary UTC unset (`FMN_LEGACY_TODO_BOUNDARY_UTC`)
-- I-01 batch transaction mechanism not implemented
-- I-02 receipt temp promote/cleanup incomplete
-- `CompanionHost` will grow with more workflows — discuss later, not urgent delete
-- L-01 / L-03 / L-04–L-06 product blocks
+- L-04 / L-05 / L-06 Layer 2 still Later (OCR / STT / LLM)
+- I-01 batch transaction mechanism not implemented (Batch 3)
+- I-02 receipt temp promote/cleanup incomplete (Batch 3)
+- `CompanionHost` complexity growth — discuss later
+- F3-05 Orchestration not implemented
 
 ### Candidate cleanup (safe noise only — needs human approval)
 
-- `debug-09d689.log`, `npm-install.log`
+- `debug-09d689.log`, `npm-install.log` (if regenerated)
 - `supabase/snippets/` local scratch
-- Git HEAD vs working-tree drift until Batch 2A / docs checkpoint is committed
 
 ---
 
@@ -173,7 +177,7 @@ From [`docs/fmn-cleaning-report.md`](fmn-cleaning-report.md) only. **No deletion
 1. Implement the **smallest** valid slice for the current batch
 2. Respect Workflow → Domain → DB; no Direct Formal Write from AI
 3. Run `npm run phase3:check`
-4. Run relevant tests (`test:batch1`, `test:batch2a`) plus `lint` / `typecheck` as needed
+4. Run relevant tests (`test:batch1` … `test:batch2c3` as applicable) plus `lint` / `typecheck` as needed
 
 ### After coding
 
@@ -187,9 +191,8 @@ From [`docs/fmn-cleaning-report.md`](fmn-cleaning-report.md) only. **No deletion
 
 **Recommended next action (navigation, not an implementation plan):**
 
-1. Review architecture (`fmn-architecture-map.md` / `fmn-architecture-guide.md`)
-2. Review cleaning report (`fmn-cleaning-report.md`)
-3. Commit a **stable checkpoint** when Product authorizes (Batch 2A + docs/scripts as appropriate)
-4. Continue Phase 3 Batch 2 work **only after** understanding search/history, Draft/Confirm, and Later Decision blocks
+1. Batch 3 (Step 7) — I-01 / I-02 Shared Write Infrastructure
+2. F3-05 Orchestration later (partially blocked by L-06)
+3. OCR / STT / LLM only after L-04 / L-05 / L-06 Layer 2 close
 
 Do not use this section as a feature backlog or coding task list.

@@ -1,6 +1,6 @@
 # Phase 3 Current State
 
-Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented in the working tree. Brand remains BLOCKED.
+Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Brand remains BLOCKED.
 
 This document describes **what exists in the repository now**.  
 It is not a product requirements document and not an implementation plan.
@@ -11,14 +11,15 @@ It is not a product requirements document and not an implementation plan.
 
 | Field | Value |
 | :--- | :--- |
-| Date | 2026-10-03 |
+| Date | 2026-10-08 |
 | Branch | `master` (tracking `origin/master`) |
-| Last committed HEAD | `bc94852` — `docs(fmn): close L-01/L-02/L-03 and sync phase 3 docs` |
-| Working tree | **Batch 2C implemented (uncommitted)** |
+| Last committed HEAD | `0a23547` — `feat(fmn): complete phase 3 batch 2c` |
+| Working tree | clean (Batch 2C committed and pushed) |
 | Prior Batch 2B feature commit | `5796e42` — `feat(fmn): implement phase 3 batch 2b — legacy boundary, organize, todo formal path` |
 | Prior Batch 2A feature commit | `fa86bfe` — `feat(fmn): add F3-02 own-history and architecture baseline` |
+| Prior docs sync commit | `bc94852` — `docs(fmn): close L-01/L-02/L-03 and sync phase 3 docs` |
 | Prior Batch 1 eslint commit | `4b9c928` — `chore(fmn): add eslint flat config` |
-| Phase 3 batch status | **Batch 1 / 2A / 2B completed**; **Batch 2C (2C-1 Destination / 2C-2 「最近」 / 2C-3 Duplicate) completed in working tree** |
+| Phase 3 batch status | **Batch 1 / 2A / 2B completed**; **Batch 2C (2C-1 Destination / 2C-2 「最近」 / 2C-3 Duplicate) completed and committed** |
 | Verification | `npm run phase3:check` / `test:batch1` / `test:batch2a` / `test:batch2b` / `test:batch2c1` / `test:batch2c2` / `test:batch2c3` / `typecheck` / `lint` |
 
 Related product / decision sources (do not treat as “implemented” unless listed below):
@@ -216,7 +217,7 @@ Does **not**: rewrite old Todo rows, add `NOT NULL`, change RLS.
 
 ### Batch 2C-1 — L-01 Destination
 
-**Status:** Implemented in working tree (not committed)
+**Status:** Implemented and committed (`0a23547`)
 
 #### Migration
 
@@ -252,7 +253,7 @@ Verification: `scripts/batch2c1-verify.ts` (`npm run test:batch2c1`)
 
 ### Batch 2C-2 — L-03「最近」
 
-**Status:** Implemented in working tree (not committed)
+**Status:** Implemented and committed (`0a23547`)
 
 「最近」≠ 时间窗口。= 最近一次 **已开始**（`start_date` ≤ today UTC）且 **有 Shopping Record** 的 Trip。不用 `end_date`，不用 item `purchase_date` 排序。
 
@@ -269,7 +270,7 @@ Verification: `scripts/batch2c2-verify.ts` (`npm run test:batch2c2`)
 
 ### Batch 2C-3 — L-02 Duplicate Detection
 
-**Status:** Implemented in working tree (not committed)
+**Status:** Implemented and committed (`0a23547`)
 
 Same Trip Shopping Todo only. Exact AND match: Product + `reference_price`/`reference_currency` + `reference_location`. No auto-merge.
 
@@ -311,7 +312,7 @@ Verification: `scripts/batch2c3-verify.ts` (`npm run test:batch2c3`)
 
 #### Explicitly not in Batch 2B
 
-- L-02 Duplicate Detection (decision Closed; equality / prompt UI **not implemented**; auto-merge remains forbidden)
+- L-02 Duplicate Detection (deferred to Batch 2C-3; auto-merge remains forbidden)
 - Public Product candidate selector (optional; not required this batch)
 - Legacy Todo force-fill of New required fields
 

@@ -7,9 +7,9 @@ Generated from directory tree, key filenames, migrations headers, and Phase 3 cu
 
 | Field | Value |
 | :--- | :--- |
-| Map date | 2026-10-02 |
-| Baseline commit (last committed) | `4b9c928` — `chore(fmn): add eslint flat config` |
-| Note | Phase 3 Batch 2A (own-history) may exist in the working tree ahead of HEAD; see `docs/phase3-current-state.md` |
+| Map date | 2026-10-08 |
+| Baseline commit (last committed) | `0a23547` — `feat(fmn): complete phase 3 batch 2c` |
+| Note | Phase 3 Batch 1 / 2A / 2B / 2C complete and committed. See `docs/phase3-current-state.md`. |
 | Scanner | `npm run architecture:scan` → `scripts/fmn-architecture-scan.ts` |
 
 ---
@@ -25,8 +25,12 @@ FMN
 ├── Phase 2: Public Sharing / Search / Social Layer
 │     Profiles, visibility, public search, follows, recommendations, Shopping Todos
 └── Phase 3: Companion Intelligence Layer
-      Companion Surface, Draft→Confirm, Quantity/Receipts foundation,
-      F3-01 text write path, F3-02 own-history (Batch 2A)
+      Companion Surface, Draft→Confirm,
+      Quantity / Receipts foundation,
+      F3-01 text write path,
+      F3-02 own-history + Destination + 最近 (L-01 / L-03),
+      F3-03 Organize,
+      F3-04 Todo formal + Duplicate (L-02)
 ```
 
 ### Tech stack
@@ -45,7 +49,7 @@ FMN
 - **Pages** under `app/` compose domain UI and mount Companion where allowed.
 - **Components** are presentation / interaction; business rules live in `lib/` and Workflows.
 - **Domain libraries** (`lib/items`, `lib/trips`, …) talk to Supabase.
-- **Workflows** (`lib/workflows/*`) orchestrate Companion capabilities (write Confirm, own-history search).
+- **Workflows** (`lib/workflows/*`) orchestrate Companion capabilities (write Confirm, own-history, organize, todo planning).
 - **Data** lives in Postgres + Storage buckets with RLS.
 
 ### Current development phase
@@ -94,12 +98,12 @@ Inherited product constraints (still in force): multi-currency independent (no l
 | `middleware.ts` | Session refresh / auth gate | P1 | Uses `lib/supabase/middleware.ts` |
 | `components/` | UI | P1–P3 | See § Feature Ownership; `companion/` is P3 |
 | `lib/items/` | Shopping Record domain | P1 (+ qty P3) | `queries`, `mutations`, `types`, `validation`, `map` |
-| `lib/trips/` | Trip domain | P1–P2 | `queries`, `mutations`, `stats`, `visibility` |
-| `lib/todos/` | Shopping Todo domain | P2–P3 | `mutations`, `validation`, `legacy-boundary` |
+| `lib/trips/` | Trip domain | P1–P3 | `queries`, `mutations`, `stats`, `visibility`, `detail`, `validation`, `types`, `destination-parse`, `recent-trip`, `resolve-destination-trip`, `resolve-recent-trip` |
+| `lib/todos/` | Shopping Todo domain | P2–P3 | `mutations`, `validation`, `legacy-boundary`, `duplicate` |
 | `lib/search/` | **Public** discovery search | P2 | `queries`, `sanitize`, `types` — must not become private history |
-| `lib/history/` | **Own** historical item search | P3 | `queries`, `sanitize`, `types` — isolated from `lib/search` |
+| `lib/history/` | **Own** historical item search | P3 | `queries`, `sanitize`, `types` — Destination ILIKE + `recentTrip` support; isolated from `lib/search` |
 | `lib/companion/` | Companion runtime state | P3 | `draft-storage`, `task-storage`, `confirm-intent`, `types` |
-| `lib/workflows/` | Companion workflows | P3 | `record-input/*`, `historical-search/*` |
+| `lib/workflows/` | Companion workflows | P3 | `record-input/*`, `historical-search/*`, `organize/*`, `todo-planning/*` |
 | `lib/receipts/` | Receipt DAL | P3 | `types`, `mutations` |
 | `lib/recommendations/` | Item recommend / not-recommend | P2 | `queries`, `mutations` |
 | `lib/follows/` | Follow graph | P2 | `queries`, `mutations` |
@@ -110,12 +114,12 @@ Inherited product constraints (still in force): multi-currency independent (no l
 | `supabase/migrations/` | Schema + RLS + buckets | P1–P3 | See §5 |
 | `supabase/snippets/` | Local SQL scratch | — | Not product source |
 | `docs/` | Product / design / Phase 3 specs + current state | — | `phase3-current-state.md` is dynamic baseline |
-| `scripts/` | Dev verify / scan | P3 tooling | `batch1-verify`, `batch2a-verify`, `phase3-boundary-check`, `fmn-architecture-scan` |
+| `scripts/` | Dev verify / scan | P3 tooling | `batch1-verify`, `batch2a-verify`, `batch2b-verify`, `batch2c1-verify`, `batch2c2-verify`, `batch2c3-verify`, `phase3-boundary-check`, `fmn-architecture-scan` |
 | `.cursor/rules/` | Agent rules (Phase 3) | P3 | `phase3-*.mdc` |
 | `.cursor/archive/` | Archived Phase 1–2 rules | — | Historical |
 | `public/test-assets/` | Dev/test SVG placeholders | — | Not core product UI |
 
-Approximate code-ish file counts (scan): `app` ≈19, `components` ≈53, `lib` ≈57, `docs` ≈9, `scripts` ≈4, migrations = 7 SQL files.
+Approximate code-ish file counts (scan): `app` ≈19, `components` ≈53, `lib` ≈57, `docs` ≈9, `scripts` ≈8, migrations = 9 SQL files.
 
 ---
 
@@ -135,7 +139,10 @@ Approximate code-ish file counts (scan): `app` ≈19, `components` ≈53, `lib` 
 | Shopping Todo | `app/trips/.../todos/**`, `components/todo/*`, `lib/todos/*` | Phase 2 (+ P3 quantity / required fields / legacy gate) |
 | Companion Shell | `components/companion/*`, mount on Home + Trip Detail | Phase 3 |
 | F3-01 text Draft→Confirm→Write | `lib/workflows/record-input/*`, `RecordDraftReview`, `confirm-intent` | Phase 3 |
-| F3-02 own-history | `lib/history/*`, `lib/workflows/historical-search/*`, `HistoryResultSection` | Phase 3 Batch 2A |
+| F3-02 own-history + Destination + 最近 | `lib/history/*`, `lib/workflows/historical-search/*`, `lib/trips/destination-parse`, `recent-trip`, `resolve-*`, `HistoryResultSection`, `CandidateSelector` | Phase 3 Batch 2A / 2C-1 / 2C-2 |
+| F3-03 Organize | `lib/workflows/organize/*`, `OrganizeResultSection` | Phase 3 Batch 2B |
+| F3-04 Todo formal + Duplicate | `lib/workflows/todo-planning/*`, `TodoDraftReview`, `TodoDuplicatePrompt`, `lib/todos/duplicate` | Phase 3 Batch 2B / 2C-3 |
+| Trip Destination field | `trips.destination`, TripForm / TripCover, migration `20261003120000_phase3_trip_destination.sql` | Phase 3 Batch 2C-1 |
 | Quantity | `lib/quantity.ts`, item/todo columns + forms | Phase 3 |
 | Receipts foundation | `lib/receipts/*`, migration receipts / receipt_items, receipt buckets | Phase 3 (OCR later) |
 
@@ -193,6 +200,8 @@ Promote / cleanup lifecycle for receipt temp storage is **not** fully implemente
 5. `20260926150000_p6_search_discovery.sql`
 6. `20260926160000_follows.sql`
 7. `20261001180000_phase3_data_foundation.sql`
+8. `20261002120000_phase3_todo_legacy_boundary.sql`
+9. `20261003120000_phase3_trip_destination.sql`
 
 ---
 
@@ -206,9 +215,17 @@ Companion (in-page Surface)
   ├─ F3-01 Workflow (record-input)
   │     text-parse → Draft → Explicit Confirm → confirm-write → createItem
   │
-  ├─ F3-02 Workflow (historical-search)   [Batch 2A]
+  ├─ F3-02 Workflow (historical-search)   [Batch 2A / 2C]
   │     parse-query → run-search → searchOwnItems → HistoryResultSection
+  │     Destination ILIKE; 「最近」→ recent-trip resolve / CandidateSelector
   │     READ-ONLY (no Draft / Confirm / createItem)
+  │
+  ├─ F3-03 Workflow (organize)   [Batch 2B / 2C]
+  │     parse-query → run-organize → searchOwnItems → OrganizeResultSection
+  │
+  ├─ F3-04 Workflow (todo-planning)   [Batch 2B / 2C-3]
+  │     text-parse → Todo Draft → Explicit Confirm → confirm-write
+  │     Duplicate Detection (prompt only; never auto-merge)
   │
   └─ Runtime state
         Conversation: in-memory
@@ -231,9 +248,11 @@ No `/companion` route. No Conversation database.
 | Launcher / Surface / Draft / Confirm | Present |
 | Quantity + receipts schema / DAL stubs | Present |
 | F3-01 text path | Present |
-| F3-02 own-history foundation | Present (Batch 2A) |
-| Todo planning via Companion (F3-04) | **Not** implemented as Companion workflow |
-| F3-03 organize | **Not** present |
+| F3-02 own-history + Destination + 最近 | Present (Batch 2A / 2C-1 / 2C-2) |
+| F3-03 organize | Present (Batch 2B) |
+| F3-04 Todo formal via Companion | Present (Batch 2B) |
+| F3-04 Duplicate Detection | Present (Batch 2C-3) |
+| Trip Destination field | Present (Batch 2C-1) |
 | F3-05 Agent loop | **Not** present |
 | OCR / STT / LLM | **Not** present (Later L-04/05/06) |
 | I-01 batch TX RPC | Decision closed; code skeleton **not** present |
@@ -270,7 +289,8 @@ Formal writes: **Input → Draft → Review → Explicit Confirm → Formal Writ
 | `AIButton` / `AIInput` / `AIForm` family | Component library forbid |
 | OCR / STT / LLM deps before L-04/05/06 close | Later Decisions |
 | Direct Agent → DB write bypassing Workflow | Architecture |
-| Inventing Brand / Destination / “最近” | L-01 / L-03 |
+| Inventing Brand (still BLOCKED) | L-01 Closed: Brand remains BLOCKED |
+| Duplicate auto-merge | L-02 explicit: prompt only, never auto-merge |
 | Cross-currency price comparison / live FX | Inherited currency rules |
 
 Automation: `npm run phase3:check`.
@@ -301,11 +321,10 @@ Automation: `npm run phase3:check`.
 
 | Topic | Reason | Confidence |
 | :--- | :--- | :--- |
-| `FMN_LEGACY_TODO_BOUNDARY_UTC` | Legacy/New Todo gate incomplete until PO sets UTC | High |
-| L-01 Brand / Destination | Blocks full F3-02 destination/brand queries | High |
-| L-03 “最近” window | Blocks product “最近” semantics | High |
-| I-01 batch TX mechanism | Closed decision; implementation timing TBD | Medium |
-| I-02 receipt temp lifecycle | Buckets exist; promote/cleanup TBD | Medium |
+| Brand (L-01 Closed: remains BLOCKED) | No brand field / inference / Brand query | High |
+| I-01 batch TX mechanism | Closed decision; implementation timing TBD (Batch 3) | Medium |
+| I-02 receipt temp lifecycle | Buckets exist; promote/cleanup TBD (Batch 3) | Medium |
+| L-04 / L-05 / L-06 Layer 2 | OCR / STT / LLM still Later | High |
 
 ### Keep because architectural boundary
 
@@ -327,10 +346,10 @@ Automation: `npm run phase3:check`.
 | :--- | :--- |
 | Phase 1 | **Clear** — trips/items/auth/storage routes and libs mapped |
 | Phase 2 | **Clear** — search, follows, recommendations, todos, profiles/visibility |
-| Phase 3 | **Clear** (for Batch 1 + 2A) — Companion, F3-01, F3-02 foundation, quantity/receipts stubs; later features intentionally absent |
+| Phase 3 | **Clear** (Batch 1 + 2A + 2B + 2C) — Companion, F3-01, F3-02 (incl. Destination / 最近), F3-03, F3-04 (incl. Duplicate), quantity/receipts stubs; F3-05 and OCR/STT/LLM intentionally absent |
 | Database | **Clear** at migration-header level; remote vs local live parity not re-verified in this map |
 | Components | **Clear** at folder/ownership level; deep prop/API graph **Need review** only if Cleaning Report requires dead-UI proof |
-| Workflows | **Clear** — two workflows present (`record-input`, `historical-search`) |
+| Workflows | **Clear** — four workflows present (`record-input`, `historical-search`, `organize`, `todo-planning`) |
 | Docs / rules | **Clear** — Phase 3 current-state is dynamic SoT; Plan v2 historical |
 | Cleaning readiness | **Ready for Cleaning Report preparation** — candidates listed; no deletes yet |
 
@@ -343,4 +362,8 @@ npm run architecture:scan   # this structural inventory
 npm run phase3:check        # Phase 3 boundary violations
 npm run test:batch1
 npm run test:batch2a
+npm run test:batch2b
+npm run test:batch2c1
+npm run test:batch2c2
+npm run test:batch2c3
 ```
