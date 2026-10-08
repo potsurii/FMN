@@ -1,10 +1,13 @@
 /**
- * I-02 Receipt Storage stubs — temporary vs formal buckets.
- * Full temporary lifecycle (promote / cleanup jobs) is out of Batch 1 scope.
+ * I-02 Receipt Storage — temporary vs formal buckets.
+ * Lifecycle helpers live in `receipt-lifecycle.ts`.
  */
 
 export const RECEIPT_TEMP_BUCKET = "receipt-images-temp";
 export const RECEIPT_FORMAL_BUCKET = "receipt-images";
+
+/** Temporary Receipt Asset max retention (I-02): 7 days. */
+export const RECEIPT_TEMP_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type ReceiptBucketKind = "temporary" | "formal";
 

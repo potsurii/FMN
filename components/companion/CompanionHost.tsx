@@ -48,6 +48,10 @@ import { classifyCompanionIntent } from "@/lib/workflows/historical-search/parse
 import { runOwnHistorySearch } from "@/lib/workflows/historical-search/run-search";
 import { runOrganize } from "@/lib/workflows/organize/run-organize";
 import type { OrganizeResultView } from "@/lib/workflows/organize/types";
+import {
+  cleanupTempReceipt,
+  sweepExpiredTempReceipts,
+} from "@/lib/workflows/shared/receipt-temp";
 import type { RecentTripCandidate } from "@/lib/trips/recent-trip";
 import { confirmShoppingTodoWrite, confirmMergeTodoQuantity } from "@/lib/workflows/todo-planning/confirm-write";
 import {
@@ -111,6 +115,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
 
   const restorePersisted = useCallback(() => {
     sweepExpiredDrafts();
+    void sweepExpiredTempReceipts();
     const existingTask = loadTaskState();
     if (!existingTask || existingTask.finalState !== "active") {
       setTask(null);
@@ -570,6 +575,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   }
 
   function handleCancelDraft() {
+    const tempReceiptPath = draft?.receiptImageRef ?? null;
     if (task) {
       cancelTaskAndClearDraft(task);
     } else if (draft) {
@@ -578,6 +584,9 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     } else if (todoDraft) {
       clearDraft("shopping_todo", todoDraft.id);
       clearTaskState();
+    }
+    if (tempReceiptPath) {
+      void cleanupTempReceipt(tempReceiptPath);
     }
     setDraft(null);
     setTodoDraft(null);
