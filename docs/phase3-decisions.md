@@ -1,6 +1,6 @@
 # Phase 3 Decision Log
 
-**Version:** 1.5
+**Version:** 1.6
 **Created:** 2026-10-01
 **Status:** Core Blocking Decisions Closed
 **Parent Document:** Phase 3 Pre-Coding Decision Lock v1.1
@@ -1619,9 +1619,10 @@ Product Owner
 
 ## L-04 Receipt OCR Provider + Privacy Boundary
 
-**Status:** 
+**Status:**
+- Product Decision（OCR 业务规则）: Closed
 - Layer 1 (Privacy): Closed
-- Layer 2 (Provider): Later
+- Layer 2 (Provider Selection): Later — Implementation / Provider Selection
 
 **Authority:** Product Owner
 
@@ -1648,7 +1649,127 @@ Product Owner
 
 发送内容：Receipt Image
 
-### Layer 2 — 供应商选择（Later）
+### Product Decision — OCR 业务规则（Closed）
+
+#### OCR Boundary
+
+```text
+Receipt Image
+      ↓
+OCR
+      ↓
+OCR Result / Structured Receipt Information
+```
+
+OCR 不负责：
+
+```text
+- 正式写入
+- 自动 Confirm
+- 猜测缺失信息
+- 自动翻译 Product Name
+- Normalise Product Name
+- Infer Brand
+- 自行决定最终业务数据
+```
+
+#### Receipt → Draft
+
+```text
+一张 Receipt
+      ↓
+可以产生多个 Item Draft
+
+Receipt 本身保持独立 Receipt Entity
+```
+
+Draft 结构至少涉及：
+
+```text
+Receipt 层
+  - receipt_date
+  - merchant / store information
+  - receipt image
+
+Item Draft 层
+  - product name
+  - actual paid price
+  - quantity
+```
+
+#### Receipt Location Prefill
+
+```text
+OCR 明确识别的 merchant / store 信息
+  能合理代表实际购买地点
+    → 可以预填 Purchase Location
+
+识别到的只是法律主体 / 公司名称
+  不能合理代表实际购买地点
+    → Location 保持为空
+```
+
+不得猜测。
+
+#### Price Allocation
+
+```text
+1. Receipt 明确给出商品最终价格       → 使用该价格
+2. Receipt 明确给出商品级 Discount     → 使用该结果
+3. Receipt 提供税率 / 税额等信息        → 可以作为约束
+4. 日本官方税务规则                     → Receipt Understanding / Price Allocation 的权威规则来源
+5. Receipt 信息 + 官方规则 + 数学约束
+   → 唯一合理结果                       → 可以生成 Draft
+6. 多个合理结果                         → 不猜、不自动分配，进入 Review
+7. 不允许为了得到完整 Draft 而创造价格
+```
+
+产品层不锁定具体技术实现必须使用 RAG；允许未来采用 deterministic rules / rules + retrieval / RAG / other verifiable implementation。但产品层必须保持：
+
+```text
+Official Japanese tax rules are an authoritative rule source
+for receipt understanding / price allocation.
+```
+
+#### OCR Translation / Brand
+
+```text
+OCR 不自动：
+  - 翻译 Product Name
+  - Normalise Product Name
+  - Infer Brand
+```
+
+Brand 继续保持 **BLOCKED**（L-01）。
+
+#### Incomplete Draft
+
+```text
+OCR 允许产生不完整 Draft
+缺失字段保持缺失，不猜
+用户在 Review 阶段补充
+```
+
+#### Receipt Draft Group
+
+```text
+Receipt Review 使用 Receipt Draft Group → multiple Item Drafts
+```
+
+用户可以：
+
+```text
+- 编辑单个 Item Draft
+- 删除单个 Item Draft
+- 手动新增 Item Draft
+```
+
+```text
+删除一个 Item Draft   → 不删除 Receipt
+新增一个 Item Draft   → 仍进入正常 Review → Explicit Confirm
+```
+
+### Layer 2 — 供应商选择（Later / Implementation）
 
 ```text
 关闭时机：F3-01 Receipt 接入前
@@ -1656,20 +1777,39 @@ Product Owner
 约束：供应商必须满足 Layer 1 全部隐私边界
 ```
 
+Provider 的具体选择属于 Implementation / Provider Selection，不属于重新开放的产品决策。
+
 ### 阻断范围
 
 ```text
 不阻断 Step 1
-阻断 F3-01 Receipt 最终实现
+阻断 F3-01 Receipt 最终实现（Provider 接入）
 ```
+
+### Docs Synced
+
+- [x] docs/phase3-decisions.md
+- [x] docs/phase3-product.md
+- [x] docs/phase3-intelligence-architecture.md
+- [x] docs/phase3-component-library.md
+- [x] docs/phase3-current-state.md
+
+### Closed By
+
+Product Owner
+
+### Closed At
+
+2026-10-08
 
 ---
 
 ## L-05 Voice STT Provider + Privacy Boundary
 
-**Status:** 
+**Status:**
+- Product Decision（STT 业务规则）: Closed
 - Layer 1 (Privacy): Closed
-- Layer 2 (Provider): Later
+- Layer 2 (Provider Selection): Later — Implementation / Provider Selection
 
 **Authority:** Product Owner
 
@@ -1696,7 +1836,59 @@ Product Owner
 
 发送内容：用户语音
 
-### Layer 2 — 供应商选择（Later）
+### Product Decision — STT 业务规则（Closed）
+
+#### STT 职责
+
+```text
+Voice
+  ↓
+STT
+  ↓
+Transcript
+```
+
+STT 的唯一核心职责：
+
+```text
+Voice → Transcript
+```
+
+STT 不负责：
+
+```text
+- Translation
+- Database Write
+- Intent execution
+- Price guessing
+- Missing information guessing
+- Confirm
+```
+
+#### 允许的行为
+
+```text
+- 不完整 Transcript
+- 一段语音产生多个 Draft
+- 用户在一句话中进行自我纠正
+```
+
+例如：
+
+```text
+"3000……不对，是 3500。"
+```
+
+后续理解层可以将最终 Draft 设为 3500，但 STT 本身不做业务判断。
+
+#### Raw Voice
+
+```text
+原始语音默认不进入 FMN 数据库
+不作为长期用户数据保存
+```
+
+### Layer 2 — 供应商选择（Later / Implementation）
 
 ```text
 关闭时机：F3-01 Voice 接入前
@@ -1704,20 +1896,39 @@ Product Owner
 约束：供应商必须满足 Layer 1 全部隐私边界
 ```
 
+Provider 的具体选择属于 Implementation / Provider Selection，不属于重新开放的产品决策。
+
 ### 阻断范围
 
 ```text
 不阻断 Step 1
-阻断 F3-01 Voice 最终实现
+阻断 F3-01 Voice 最终实现（Provider 接入）
 ```
+
+### Docs Synced
+
+- [x] docs/phase3-decisions.md
+- [x] docs/phase3-product.md
+- [x] docs/phase3-intelligence-architecture.md
+- [x] docs/phase3-component-library.md
+- [x] docs/phase3-current-state.md
+
+### Closed By
+
+Product Owner
+
+### Closed At
+
+2026-10-08
 
 ---
 
 ## L-06 LLM Provider + Privacy Boundary
 
-**Status:** 
+**Status:**
+- Product Decision（LLM 业务规则）: Closed
 - Layer 1 (Privacy): Closed
-- Layer 2 (Provider): Later
+- Layer 2 (Provider Selection): Later — Implementation / Provider Selection
 
 **Authority:** Product Owner
 
@@ -1750,7 +1961,103 @@ Product Owner
 - 不发送完整 Shopping Record / 完整历史
 ```
 
-### Layer 2 — 供应商选择（Later）
+### Product Decision — LLM 业务规则（Closed）
+
+#### LLM 定位
+
+```text
+Natural Language Understanding
+Structured Input
+Draft
+Intent Assistance
+```
+
+#### LLM 可以
+
+```text
+- 理解自然语言
+- 提取用户明确表达的信息
+- 生成 Structured Intent
+- 生成 Draft
+- 理解用户纠正
+- 通过受控 History Search 获取必要历史结果
+- 生成基于 Workflow 返回结果的自然语言回复
+- 提出允许的 Intent / 下一步 Workflow
+```
+
+#### LLM 不可以
+
+```text
+- 直接写数据库
+- 自动 Confirm
+- 猜测缺失信息
+- 猜测价格
+- 猜测地点
+- 猜测商品
+- 自行决定权限
+- 自由执行任意 Tool
+- 绕过 Workflow
+- 获得完整 Shopping History 作为默认 Context
+```
+
+#### LLM Context Boundary
+
+默认 Context：
+
+```text
+Current User Input
++ Current Trip Context
++ Current Conversation Context
++ Minimum Necessary History Search Result
+```
+
+不默认发送：
+
+```text
+完整 Shopping Record
+完整历史
+完整 User Profile
+```
+
+Current Trip：
+
+```text
+是默认 Context，不是 Permission
+```
+
+用户可以查询其他历史 Trip。如果需要写入非 Current Trip：
+
+```text
+必须明确确定目标 Trip
+并遵守 Explicit Confirmation
+```
+
+#### LLM → Workflow Boundary
+
+正式执行必须保持：
+
+```text
+LLM
+  ↓
+Structured Intent
+  ↓
+Deterministic Workflow
+  ↓
+Review
+  ↓
+Explicit Confirm
+  ↓
+Domain
+  ↓
+DB
+```
+
+```text
+LLM 不拥有数据库写权限
+Provider 不得绕过 Workflow
+```
+
+### Layer 2 — 供应商选择（Later / Implementation）
 
 ```text
 关闭时机：F3-01 / F3-05 LLM 接入前
@@ -1758,12 +2065,30 @@ Product Owner
 约束：供应商必须满足 Layer 1 全部隐私边界
 ```
 
+Provider 的具体选择属于 Implementation / Provider Selection，不属于重新开放的产品决策。
+
 ### 阻断范围
 
 ```text
 不阻断 Step 1
-阻断 F3-01 / F3-05 智能能力最终实现
+阻断 F3-01 / F3-05 智能能力最终实现（Provider 接入）
 ```
+
+### Docs Synced
+
+- [x] docs/phase3-decisions.md
+- [x] docs/phase3-product.md
+- [x] docs/phase3-intelligence-architecture.md
+- [x] docs/phase3-component-library.md
+- [x] docs/phase3-current-state.md
+
+### Closed By
+
+Product Owner
+
+### Closed At
+
+2026-10-08
 
 ---
 
@@ -1868,9 +2193,12 @@ Cursor Plan v2
 | L-01 Brand / Destination | ✅ Closed | — |
 | L-02 Duplicate Detection | ✅ Closed | — |
 | L-03 "最近" 语义 | ✅ Closed | — |
-| L-04a OCR Provider | Later | F3-01 Receipt |
-| L-05a STT Provider | Later | F3-01 Voice |
-| L-06a LLM Provider | Later | F3-01 / F3-05 |
+| L-04 OCR 业务规则 | ✅ Product Decision Closed | — |
+| L-04a OCR Provider | Later（Implementation） | F3-01 Receipt 最终实现 |
+| L-05 STT 业务规则 | ✅ Product Decision Closed | — |
+| L-05a STT Provider | Later（Implementation） | F3-01 Voice 最终实现 |
+| L-06 LLM 业务规则 | ✅ Product Decision Closed | — |
+| L-06a LLM Provider | Later（Implementation） | F3-01 / F3-05 智能能力最终实现 |
 
 ---
 
@@ -1878,11 +2206,12 @@ Cursor Plan v2
 
 ## 文档同步
 
-- [x] `docs/phase3-component-library.md` 合并（D0-01 / D0-02）
+- [x] `docs/phase3-component-library.md` 合并 + Batch 4 组件语义（D0-01 / D0-02 / L-04 / L-05 / L-06）
 - [x] `.cursor/rules/phase3-component-library.mdc` 同步（D0-02）
-- [x] `docs/phase3-product.md` 同步（D1-01 / D1-02 / D1-03 / D2-01 / D2-02 / D2-04 / D2-05 / D2-06 / D3-01 / D3-02 / D5-02 / D5-04 / L-04/05/06 隐私边界）
-- [x] `docs/phase3-intelligence-architecture.md` 同步（D1-02 / D1-03 / D2-01 / D2-05 / D4-01 / D4-02 / D4-03 / D5-01 / D5-03 / D5-04 / I-01 / I-02）
+- [x] `docs/phase3-product.md` 同步（D1-01 / D1-02 / D1-03 / D2-01 / D2-02 / D2-04 / D2-05 / D2-06 / D3-01 / D3-02 / D5-02 / D5-04 / L-04/05/06 隐私边界 + 业务规则）
+- [x] `docs/phase3-intelligence-architecture.md` 同步（D1-02 / D1-03 / D2-01 / D2-05 / D4-01 / D4-02 / D4-03 / D5-01 / D5-03 / D5-04 / I-01 / I-02 / L-04/05/06 流程边界）
 - [x] `docs/phase3-design-system.md` 同步（D3-01 / D5-04，如涉及）
+- [x] `docs/phase3-current-state.md` 同步（L-04 / L-05 / L-06 Product Decision Closed + Implementation Not Implemented）
 
 ## Consistency Check
 
@@ -1904,10 +2233,10 @@ Cursor Plan v2
 
 # Document Status
 
-**Version:** 1.5
+**Version:** 1.6
 **Status:** Core Blocking Decisions Closed
-**Later Decisions:** L-04a / L-05a / L-06a Open / Non-blocking
-**Next Action:** 完成剩余文档同步 + Consistency Check + Cursor Plan v2
+**Later Decisions:** L-04 / L-05 / L-06 Product Decisions Closed；L-04a / L-05a / L-06a Provider Selection = Later（Implementation）
+**Next Action:** Provider Selection（Implementation）+ Cursor Plan v2
 **Coding:** 待开放
 
 ---

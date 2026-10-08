@@ -1345,6 +1345,120 @@ OrchestrationModule
 
 ---
 
+# Batch 4 Components (L-04 / L-05 / L-06)
+
+以下组件语义为 Batch 4（F3-01 Receipt / Voice）所需。复用现有 Draft / Confirmation / Form / Result 语言，**不创建独立 AI Component Family**（无 AIButton / AIInput / AIForm）。
+
+## Receipt Draft Group
+
+### Purpose
+
+一个 Receipt + 多个 Item Draft 的 Review 容器。
+
+### Structure
+
+```text
+Receipt Draft Group
+├── Receipt information
+├── Item Draft × N
+└── Unified Review / Confirm
+```
+
+### Rules
+
+```text
+- Receipt 本身保持独立 Receipt Entity
+- 用户可编辑 / 删除 / 新增单个 Item Draft
+- 删除一个 Item Draft → 不删除 Receipt
+- 新增 Item Draft → 仍进入正常 Review → Explicit Confirm
+- 允许不完整 Draft（缺失字段保持缺失，不猜）
+```
+
+优先复用 BatchDraft（§34）+ DraftCard（§30）+ ConfirmationCard（§35）。
+
+## Item Draft
+
+### Purpose
+
+展示 Receipt 产生的单个 Item Draft。
+
+### Fields
+
+```text
+- product name
+- actual paid price
+- quantity
+（可选 / 可缺失：purchase location、category 等）
+```
+
+### States
+
+```text
+- Draft
+- Editing
+- Ready
+- Confirmed
+- Incomplete（缺失字段，不阻断 Review）
+```
+
+### Rules
+
+支持单个 edit / delete / add。
+
+缺失字段必须明确显示（复用 DraftField Missing variant，§31）。
+
+## Receipt Review
+
+### Purpose
+
+组织 Receipt 信息 + Item Draft 列表的 Review 流程。
+
+### States
+
+```text
+- Incomplete（部分 Item Draft 缺失字段）
+- Ready
+- WaitingConfirmation
+- Confirmed
+```
+
+### Rules
+
+```text
+- Receipt information：receipt_date / merchant / store / receipt image
+- Confirm boundary：必须 Explicit Confirm，不得自动写入
+- Incomplete state 允许进入 Review，但 Confirm 前必须补齐 Required Fields
+```
+
+复用 ConfirmationCard（§35）+ ConfirmationActionGroup（§36）。
+
+## Voice Draft
+
+### Purpose
+
+展示语音输入产生的 Draft。
+
+### Variants
+
+```text
+- Single Draft（一段语音 → 一个 Draft）
+- Multi Draft（一段语音 → 多个 Draft）
+```
+
+### Rules
+
+```text
+- 支持多个 Draft
+- 支持单个 edit
+- 支持单个 delete
+- 允许不完整 Transcript（缺失字段保持缺失）
+- Raw Voice 不持久化（不进 FMN DB，不作长期用户数据）
+```
+
+复用 RecordDraft（§32）/ BatchDraft（§34）+ DraftField（§31）。
+
+---
+
 # 50. Existing Component Overrides
 
 Phase 3 继续复用既有 Component Library。

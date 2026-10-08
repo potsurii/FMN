@@ -630,11 +630,48 @@ Formal Shopping Record
 ```text
 Voice
 ↓
-Speech-to-Text
+STT
 ↓
-Natural Language Understanding
+Transcript
 ↓
-F3-01
+LLM / Input Understanding
+↓
+Structured Intent / Draft
+↓
+F3-01 Workflow
+```
+
+STT 的唯一核心职责：
+
+```text
+Voice → Transcript
+```
+
+STT 不负责：
+
+```text
+- Translation
+- Database Write
+- Intent execution
+- Price guessing
+- Missing information guessing
+- Confirm
+```
+
+允许：
+
+```text
+- 不完整 Transcript
+- 一段语音产生多个 Draft
+- 用户在一句话中进行自我纠正（"3000……不对，是 3500。"）
+```
+
+后续理解层可以将最终 Draft 设为 3500，但 STT 本身不做业务判断。
+
+Raw Voice：
+
+```text
+原始语音默认不进入 FMN 数据库，不作为长期用户数据保存。
 ```
 
 Voice 与 Text：
@@ -646,22 +683,81 @@ Voice 与 Text：
 ## 11.4 Receipt
 
 ```text
-Receipt Photo
+Receipt Image
+↓
+OCR
 ↓
 Receipt Understanding
 ↓
-Product Identification
+Tax / Discount Rules
 ↓
-Product Splitting
+Price Allocation
 ↓
-Price Processing
-↓
-Record Draft
+Item Drafts
+```
+
+OCR Boundary：
+
+```text
+Receipt Image → OCR Result / Structured Receipt Information
+```
+
+OCR 不负责：
+
+```text
+- 正式写入
+- 自动 Confirm
+- 猜测缺失信息
+- 自动翻译 Product Name
+- Normalise Product Name
+- Infer Brand
+- 自行决定最终业务数据
+```
+
+Brand 继续保持 BLOCKED（L-01）。
+
+Price Allocation（详见 `docs/phase3-product.md` §8.3）：
+
+```text
+1. Receipt 明确给出商品最终价格       → 使用该价格
+2. Receipt 明确给出商品级 Discount     → 使用该结果
+3. Receipt 提供税率 / 税额等信息        → 可以作为约束
+4. 日本官方税务规则                     → 权威规则来源
+5. Receipt + 官方规则 + 数学约束
+   → 唯一合理结果                       → 可以生成 Draft
+6. 多个合理结果                         → 不猜、不自动分配，进入 Review
+7. 不允许为了得到完整 Draft 而创造价格
+```
+
+```text
+Official Japanese tax rules are an authoritative rule source
+for receipt understanding / price allocation.
+```
+
+产品层不锁定具体技术实现必须使用 RAG。
+
+Receipt Location Prefill：
+
+```text
+OCR 明确识别的 merchant / store 信息能合理代表实际购买地点
+  → 可以预填 Purchase Location
+识别到的只是法律主体 / 公司名称
+  → Location 保持为空
+不得猜测。
 ```
 
 一张 Receipt：
 
-> 可以产生多个 Record Draft。
+> 可以产生多个 Item Draft / Record Draft。
+
+Receipt Draft Group：
+
+```text
+Receipt Draft Group → multiple Item Drafts
+用户可编辑 / 删除 / 新增单个 Item Draft
+删除 Item Draft → 不删除 Receipt
+新增 Item Draft → 仍进入正常 Review → Explicit Confirm
+```
 
 Receipt Image 作为：
 
@@ -838,6 +934,130 @@ Phase 3 Batch 3（I-02）实现：
 * Confirm：temp → formal promotion，再由 I-01 RPC 创建 `receipts` + `receipt_items`
 * Cancel / Expire：temp cleanup；最长保留 ≤ 7 天（异步 sweep 允许）
 * **Residual risk：** Storage 与 Postgres 不在同一事务边界。RPC rollback 后若 formal Storage cleanup 失败，理论上可能留下 orphan formal object；数据库侧保持完整回滚。不含 OCR。
+
+---
+
+## 11.10 LLM / Structured Input Boundary
+
+LLM 定位：
+
+```text
+Natural Language Understanding
+Structured Input
+Draft
+Intent Assistance
+```
+
+```text
+User Input
+↓
+LLM Understanding
+↓
+Structured Intent
+↓
+Deterministic Workflow
+↓
+Review
+↓
+Explicit Confirm
+↓
+Domain
+↓
+DB
+```
+
+LLM 可以：
+
+```text
+- 理解自然语言
+- 提取用户明确表达的信息
+- 生成 Structured Intent
+- 生成 Draft
+- 理解用户纠正
+- 通过受控 History Search 获取必要历史结果
+- 生成基于 Workflow 返回结果的自然语言回复
+- 提出允许的 Intent / 下一步 Workflow
+```
+
+LLM 不可以：
+
+```text
+- 直接写数据库
+- 自动 Confirm
+- 猜测缺失信息
+- 猜测价格
+- 猜测地点
+- 猜测商品
+- 自行决定权限
+- 自由执行任意 Tool
+- 绕过 Workflow
+- 获得完整 Shopping History 作为默认 Context
+```
+
+明确：
+
+```text
+LLM ≠ Permission Layer
+LLM ≠ Database Writer
+LLM ≠ unrestricted Agent
+```
+
+### LLM Context Boundary
+
+默认 Context：
+
+```text
+Current User Input
++ Current Trip Context
++ Current Conversation Context
++ Minimum Necessary History Search Result
+```
+
+不默认发送：
+
+```text
+完整 Shopping Record
+完整历史
+完整 User Profile
+```
+
+Current Trip：
+
+```text
+是默认 Context，不是 Permission
+```
+
+用户可以查询其他历史 Trip。如果需要写入非 Current Trip：
+
+```text
+必须明确确定目标 Trip
+并遵守 Explicit Confirmation
+```
+
+### LLM → Workflow Boundary
+
+```text
+LLM
+↓
+Structured Intent
+↓
+Deterministic Workflow
+↓
+Review
+↓
+Explicit Confirm
+↓
+Domain
+↓
+DB
+```
+
+```text
+LLM 不拥有数据库写权限
+Provider 不得绕过 Workflow
+```
+
+本节同时适用于 F3-01 输入理解与 F3-05 跨功能编排（见 §16.3）。
 
 ---
 
@@ -1498,6 +1718,25 @@ User Confirm
  ↓
 Formal Todo
 ```
+
+---
+
+## 16.3 Bounded Orchestration（L-06）
+
+F3-05 仍然是 bounded workflow orchestration：
+
+```text
+LLM 只能提出允许的 Intent
+Workflow Router 决定实际执行
+```
+
+LLM 不拥有数据库写权限，Provider 不得绕过 Workflow。正式执行必须保持：
+
+```text
+LLM → Structured Intent → Deterministic Workflow → Review → Explicit Confirm → Domain → DB
+```
+
+详见 §11.10 LLM / Structured Input Boundary。
 
 ---
 

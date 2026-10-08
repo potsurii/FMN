@@ -1,6 +1,6 @@
 # Phase 3 Current State
 
-Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C / 3. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Batch 3 I-01 / I-02 shared write infrastructure is implemented; Batch 3 Runtime Review = **PASS**. Brand remains BLOCKED.
+Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C / 3. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Batch 3 I-01 / I-02 shared write infrastructure is implemented; Batch 3 Runtime Review = **PASS**. Brand remains BLOCKED. L-04 / L-05 / L-06 product decisions (OCR / STT / LLM business rules) are **Closed**; implementation / provider integration is **not started**.
 
 This document describes **what exists in the repository now**.  
 It is not a product requirements document and not an implementation plan.
@@ -399,11 +399,18 @@ Closed Later Decisions vs repository implementation:
 
 Still Later (do not invent closures):
 
-| ID | Topic | Status | Blocks |
+L-04 / L-05 / L-06 — Product Decisions Closed; Implementation Not Implemented.
+
+| ID | Topic | Product Decision | Implementation |
 | :--- | :--- | :--- | :--- |
-| L-04 | OCR provider (Layer 2) | Later (Privacy Layer 1 closed) | F3-01 Receipt OCR path |
-| L-05 | STT provider (Layer 2) | Later (Privacy Layer 1 closed) | F3-01 Voice path |
-| L-06 | LLM provider (Layer 2) | Later (Privacy Layer 1 closed) | LLM-assisted F3-01 / F3-05 |
+| L-04 | Receipt OCR business rules | ✅ Closed | Not implemented |
+| L-05 | Voice STT business rules | ✅ Closed | Not implemented |
+| L-06 | LLM business rules | ✅ Closed | Not implemented |
+| L-04a | OCR provider | Later (Implementation) | Not implemented |
+| L-05a | STT provider | Later (Implementation) | Not implemented |
+| L-06a | LLM provider | Later (Implementation) | Not implemented |
+
+L-04 / L-05 / L-06 product boundaries are closed; implementation / provider integration is the next authorized scope.
 
 Additional open inputs (not Later Decisions):
 
@@ -420,16 +427,27 @@ Additional open inputs (not Later Decisions):
 
 Suggested next coding slices (not started):
 
-- Separate feature commit for Batch 3 implementation files if not yet committed with this docs sync
-- Wire multi-record Confirm Workflow UI when F3-01 Receipt / F3-05 need it (reuse I-01 / I-02)
-- OCR / STT / LLM only after L-04 / L-05 / L-06 Layer 2 close
-- F3-05 / Agent loop only when explicitly authorized
+1. Batch 3 / Shared Write Infrastructure — **已完成**（I-01 / I-02 Runtime Review PASS）
+2. Batch 4 / F3-01 Receipt + Voice（Provider integration；L-04 / L-05 / L-06 Product Decisions 已 Closed）
+3. Batch 5 / F3-05 bounded orchestration（LLM 只能提允许的 Intent；Workflow Router 决定实际执行）
+4. Batch 6 / Hardening only（只修 implementation correctness / security / RLS / error handling / provider failure / idempotency / draft recovery / cleanup / regression / boundary violations；**不得新增产品能力**）
+
+不创建未经 Product Owner 批准的 Batch 7。
+
+### Current implementation status
+
+- OCR = not implemented
+- STT = not implemented
+- LLM = not implemented
+- Provider integration = not implemented
+
+L-04 / L-05 / L-06 product boundaries are closed; implementation / provider integration is the next authorized scope.
 
 Remain forbidden:
 
 - Brand field / Brand inference (L-01 Closed: Brand stays BLOCKED)
 - Duplicate auto-merge (L-02 Closed: prompt only, never auto-merge)
-- OCR / STT / LLM until L-04 / L-05 / L-06 Layer 2 close
+- Provider / OCR / STT / LLM integration without authorized Batch 4 scope（product boundaries 已 Closed，但 implementation 仍未开始）
 - Agent loop / F3-05 early
 - Converting public `lib/search` into private history
 
@@ -453,7 +471,7 @@ Remain forbidden:
    - `docs/phase3-component-library.md`
    - `.cursor/rules/phase3-*.mdc`
 
-4. Do not implement blocked Later Decision features (L-04 / L-05 / L-06 Layer 2) by inventing missing product answers. Do not invent Brand despite L-01 Destination being implemented.
+4. L-04 / L-05 / L-06 Product Decisions（OCR / STT / LLM 业务规则）已 Closed；Provider 选择（L-04a / L-05a / L-06a）仍属 Later / Implementation。未进入 authorized Batch 4 scope 前，不得接入 Provider、不得安装 OCR / STT / LLM package、不得创建 Provider integration。Do not invent Brand despite L-01 Destination being implemented.
 
 5. Prefer:
 

@@ -96,6 +96,121 @@ Detailed AI architecture:
 
 ---
 
+## 4.1 L-04 / L-05 / L-06 Closed Boundaries
+
+L-04 (Receipt OCR) / L-05 (Voice STT) / L-06 (LLM) product decisions are Closed.
+Implementation / provider integration is the next authorized scope, not a reopened product decision.
+
+### AI Input Boundary
+
+OCR / STT / LLM may be implemented only according to the closed L-04 / L-05 / L-06 product boundaries.
+
+They must not bypass Draft → Review → Explicit Confirm → Formal Write.
+
+### Unified Input Boundary
+
+```text
+OCR → Structured Receipt / Item Drafts
+STT → Transcript
+LLM → Structured Intent / Draft
+```
+
+None of OCR / STT / LLM is a database write layer.
+
+### Workflow Boundary
+
+Must preserve:
+
+```text
+Input → Draft / Structured Intent → Workflow → Review → Explicit Confirm → Domain / DB
+```
+
+Forbidden:
+
+```text
+AI Provider → DB
+LLM → DB
+Agent → DB
+OCR → DB
+STT → DB
+```
+
+### LLM Boundary
+
+LLM may:
+
+* understand natural language
+* extract explicit information
+* create Structured Intent
+* create Draft
+* request allowed History Search
+* generate response based on returned data
+
+LLM must not:
+
+* write DB
+* auto-confirm
+* invent missing data
+* invent prices
+* invent locations
+* access complete history by default
+* bypass Workflow
+* execute arbitrary actions outside allowed Workflow
+
+### Context Boundary
+
+Context ≠ Permission.
+
+Current Trip remains default context.
+
+RLS / ownership remains the permission boundary.
+
+History Search must use the existing private-history Workflow / Domain boundary.
+
+### Receipt Price Safety
+
+OCR / Receipt Understanding:
+
+```text
+Explicit receipt information
+>
+Official rule constraints
+>
+Deterministic calculation
+>
+Review if ambiguous
+```
+
+If multiple valid price allocations remain:
+
+> Do not guess.
+
+Do not invent a price merely to complete a Draft.
+
+### Official Tax Knowledge
+
+Japan official tax rules may be used as authoritative knowledge / rule source for receipt understanding and price allocation.
+
+Do NOT hard-code:
+
+> RAG is mandatory.
+
+The implementation mechanism remains an implementation decision.
+
+### Raw Voice
+
+Raw voice must not become long-term FMN data.
+
+Default:
+
+```text
+Voice → STT → Transcript → Raw Voice discarded / not persisted
+```
+
+unless a future Product Decision explicitly changes this.
+
+---
+
 ## 5. Data Integrity
 
 Never guess or fabricate:

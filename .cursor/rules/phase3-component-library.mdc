@@ -368,6 +368,75 @@ Before modifying a shared component:
 
 Do not rewrite a shared component merely to simplify one page.
 
+### Rule 21 — Receipt Draft Group
+
+Receipt UI may represent:
+
+```text
+Receipt
+├── Item Draft 1
+├── Item Draft 2
+└── Item Draft N
+```
+
+It must support:
+
+* individual Item Draft edit
+* individual Item Draft delete
+* manual Item Draft add
+
+Deleting an Item Draft must not delete the Receipt.
+
+### Rule 22 — Voice Draft Group
+
+A single voice input may produce:
+
+```text
+Draft 1
+Draft 2
+Draft N
+```
+
+Each Draft must remain independently reviewable / editable / deletable.
+
+### Rule 23 — Component Reuse (L-04 / L-05 / L-06)
+
+For L-04 / L-05 / L-06 related components, apply Rule 2 and the additional restrictions below.
+
+Continue to prefer:
+
+```text
+Existing Draft components
+Existing Form components
+Existing Confirmation components
+Existing Result components
+```
+
+Do not create:
+
+```text
+AIButton
+AIInput
+AIForm
+AIReceiptCard
+AIRecordCard
+```
+
+For L-04 / L-05 / L-06 related components, these AI-specific component names are not permitted unless a future Product / Component Decision explicitly requires a new reusable component.
+
+This is a stricter, L-04 / L-05 / L-06-specific extension of Rule 2.
+
+### Rule 24 — Product Boundary
+
+Component implementation must not alter:
+
+* Draft semantics
+* Receipt semantics
+* Price allocation semantics
+* Confirm semantics
+* Context semantics
+* LLM permission boundary
+
 ---
 
 ## 4. Product / Design / Component Boundary
