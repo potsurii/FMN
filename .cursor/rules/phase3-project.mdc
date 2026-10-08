@@ -169,33 +169,55 @@ History Search must use the existing private-history Workflow / Domain boundary.
 
 ### Receipt Price Safety
 
-OCR / Receipt Understanding:
+Receipt OCR is extraction-only.
 
-```text
-Explicit receipt information
->
-Official rule constraints
->
-Deterministic calculation
->
-Review if ambiguous
-```
+OCR identifies the purchased product line and the price explicitly displayed on that product line.
 
-If multiple valid price allocations remain:
+`receipt_line_price` is the receipt-line amount explicitly shown on the receipt.
 
-> Do not guess.
+It is not defined as:
 
-Do not invent a price merely to complete a Draft.
+- Actual Paid Price
+- Final Effective Cost
+- After-tax Price
+- Tax-free Price
+- Refund-adjusted Price
+
+OCR does not perform or infer:
+
+- Discount
+- Promotion
+- Coupon
+- Tax
+- Tax Rate
+- Tax-Free status
+- Refund
+- Payment Method
+- Final Effective Cost
+- Price Allocation
+- Discount Allocation
+- Tax Allocation
+- Refund Calculation
+
+Receipt Total must not be used to derive or allocate an Item Price.
+
+Quantity must not be used to reverse-calculate a unit price.
+
+Missing information remains missing.
+
+OCR must not guess, complete, calculate, allocate, or derive missing business values.
+
+OCR does not write to the database.
 
 ### Official Tax Knowledge
 
-Japan official tax rules may be used as authoritative knowledge / rule source for receipt understanding and price allocation.
+Japanese tax rules, tax calculation, tax-rate interpretation, Tax-Free determination, and tax-based price allocation are outside the current L-04 Receipt OCR scope.
 
-Do NOT hard-code:
+OCR must not use Japanese tax rules to calculate, allocate, or derive Item Price.
 
-> RAG is mandatory.
+Any future tax-related capability requires a new explicit Product Decision.
 
-The implementation mechanism remains an implementation decision.
+No Japanese tax RAG is required or implemented as part of the current L-04 scope.
 
 ### Raw Voice
 

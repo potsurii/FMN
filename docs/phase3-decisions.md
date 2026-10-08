@@ -1658,7 +1658,7 @@ Receipt Image
       ↓
 OCR
       ↓
-OCR Result / Structured Receipt Information
+OCR Result / Structured Receipt Items
 ```
 
 OCR 不负责：
@@ -1711,25 +1711,99 @@ OCR 明确识别的 merchant / store 信息
 
 不得猜测。
 
-#### Price Allocation
+### L-04 Receipt Line Price Boundary
 
-```text
-1. Receipt 明确给出商品最终价格       → 使用该价格
-2. Receipt 明确给出商品级 Discount     → 使用该结果
-3. Receipt 提供税率 / 税额等信息        → 可以作为约束
-4. 日本官方税务规则                     → Receipt Understanding / Price Allocation 的权威规则来源
-5. Receipt 信息 + 官方规则 + 数学约束
-   → 唯一合理结果                       → 可以生成 Draft
-6. 多个合理结果                         → 不猜、不自动分配，进入 Review
-7. 不允许为了得到完整 Draft 而创造价格
-```
+Receipt OCR is extraction-only.
 
-产品层不锁定具体技术实现必须使用 RAG；允许未来采用 deterministic rules / rules + retrieval / RAG / other verifiable implementation。但产品层必须保持：
+Its responsibility is limited to identifying each purchased product line and the price explicitly shown on that product line.
 
-```text
-Official Japanese tax rules are an authoritative rule source
-for receipt understanding / price allocation.
-```
+The OCR flow is:
+
+Receipt Image
+↓
+OCR
+↓
+Product Line Extraction
+↓
+Explicit Line Price Extraction
+↓
+Structured Receipt Items
+↓
+Item Drafts
+↓
+Review
+↓
+Explicit Confirm
+↓
+Formal Write
+
+Each Structured Receipt Item may contain:
+
+- product_name
+- receipt_line_price
+- quantity, only when the receipt explicitly states the quantity
+
+`receipt_line_price` means the amount explicitly displayed on that product line.
+
+It is not defined as:
+
+- Actual Paid Price
+- Final Effective Cost
+- After-tax Price
+- Tax-free Price
+- Refund-adjusted Price
+
+OCR does not perform or infer:
+
+- Discount
+- Promotion
+- Coupon
+- Tax
+- Tax Rate
+- Tax-Free status
+- Refund
+- Payment Method
+- Final Effective Cost
+- Price Allocation
+- Discount Allocation
+- Tax Allocation
+- Refund Calculation
+
+If the receipt contains a Receipt Total, OCR may recognize it as raw receipt information, but Receipt Total must never be used to derive or allocate an Item Price.
+
+Quantity must not be used to reverse-calculate a unit price unless a future Product Decision explicitly introduces such behavior.
+
+For example:
+
+KITKAT × 3
+¥900
+
+must remain:
+
+- quantity = 3
+- receipt_line_price = ¥900
+
+OCR must not calculate:
+
+- ¥300
+
+Missing information remains missing.
+
+OCR must not guess, complete, calculate, allocate, or derive missing business values.
+
+OCR does not write to the database.
+
+The formal write flow remains:
+
+Input
+→ Draft / Structured Input
+→ Workflow
+→ Review
+→ Explicit Confirm
+→ Domain
+→ DB
+
+Any future capability involving tax calculation, effective cost calculation, discount allocation, refund calculation, or other price allocation requires a new explicit Product Decision and is outside the current L-04 scope.
 
 #### OCR Translation / Brand
 

@@ -652,9 +652,35 @@ OCR / Vision / Product Splitting：
 
 组件不负责。
 
+Receipt OCR 只负责识别：
+
+```text
+Product Name
+Receipt Line Price
+Quantity（仅收据明确写出时）
+```
+
+组件不负责：
+
+Discount
+Promotion
+Coupon
+Tax
+Tax Rate
+Tax-Free
+Refund
+Payment Method
+Final Effective Cost
+
+Receipt OCR 不进行价格计算。
+
+Receipt Total 不用于反推 Item Price。
+
+Quantity 不用于反推 Unit Price.
+
 Receipt Image 作为共享输入 / 附件引用，可以关联多个由其产生的 Record。
 
-未 Confirm 的 Receipt Image 属于 Temporary Receipt Asset。
+未 Confirm 的 Receipt Image 属于 Temporary Receipt Asset.
 
 ---
 
@@ -926,6 +952,33 @@ Quantity
 `docs/phase3-product.md`
 
 Receipt Image 可以引用共享 Receipt，而不是要求每个 Record 复制一份 Receipt。
+
+Receipt OCR 产生的：
+
+```text
+receipt_line_price
+```
+
+不是最终：
+
+Actual Paid Price
+
+OCR 不负责：
+
+Discount
+Promotion
+Coupon
+Tax
+Tax-Free
+Refund
+Payment Method
+Final Effective Cost
+
+OCR 不进行价格计算。
+
+Receipt Total 不用于反推 Item Price。
+
+Quantity 不用于反推 Unit Price.
 
 Quantity 默认 1，用户可在 Confirm 前修改。
 

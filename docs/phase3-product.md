@@ -478,7 +478,19 @@ Receipt Image
   ↓
 OCR
   ↓
-OCR Result / Structured Receipt Information
+Product Line Extraction
+  ↓
+Explicit Line Price Extraction
+  ↓
+Structured Receipt Items
+  ↓
+Item Drafts
+  ↓
+Review
+  ↓
+Explicit Confirm
+  ↓
+Formal Write
 ```
 
 OCR 不负责：
@@ -505,25 +517,49 @@ OCR 明确识别的 merchant / store 信息能合理代表实际购买地点：
 
 不得猜测。
 
-### Price Allocation
+### Receipt Line Price Boundary
+
+Receipt OCR 仅识别 Receipt 上商品行明确显示的价格。
+
+该价格记录为：
+
+`receipt_line_price`
+
+`receipt_line_price` 表示 Receipt 商品行上明确显示的金额。
+
+它不表示：
 
 ```text
-1. Receipt 明确给出商品最终价格       → 使用该价格
-2. Receipt 明确给出商品级 Discount     → 使用该结果
-3. Receipt 提供税率 / 税额等信息        → 可以作为约束
-4. 日本官方税务规则                     → Receipt Understanding / Price Allocation 的权威规则来源
-5. Receipt 信息 + 官方规则 + 数学约束
-   → 唯一合理结果                       → 可以生成 Draft
-6. 多个合理结果                         → 不猜、不自动分配，进入 Review
-7. 不允许为了得到完整 Draft 而创造价格
+Actual Paid Price
+Final Effective Cost
+After-tax Price
+Tax-free Price
+Refund-adjusted Price
 ```
 
-产品层不锁定具体技术实现必须使用 RAG；允许未来采用 deterministic rules / rules + retrieval / RAG / other verifiable implementation。但产品层必须保持：
+Receipt OCR 不负责：
 
 ```text
-Official Japanese tax rules are an authoritative rule source
-for receipt understanding / price allocation.
+Discount
+Promotion
+Coupon
+Tax
+Tax Rate
+Tax-Free
+Refund
+Payment Method
+Final Effective Cost
+Price Allocation
+Discount Allocation
+Tax Allocation
+Refund Calculation
 ```
+
+Receipt Total 即使被 OCR 识别，也不得用于反推 Item Price。
+
+如果 Receipt 未明确显示某项信息：
+
+> 保持缺失，不猜测、不计算、不推导。
 
 ### OCR Translation / Brand
 
@@ -667,6 +703,55 @@ Receipt Image：
 
 Receipt Image 与 Product Image 是不同数据概念。
 
+### Receipt OCR Boundary
+
+Receipt OCR 只负责：
+
+```text
+Receipt Image
+  ↓
+识别购买商品行
+  ↓
+识别商品行明确显示的价格
+  ↓
+Structured Receipt Items
+```
+
+Structured Receipt Item 最多包含：
+
+product_name
+receipt_line_price
+quantity
+
+Quantity 只有收据明确写出时才识别。
+
+Receipt Line Price 是：
+
+商品行明确显示的金额。
+
+Receipt OCR 不负责计算：
+
+Actual Paid Price
+Final Effective Cost
+Tax
+Tax-Free
+Refund
+Discount
+Promotion
+Coupon
+
+Receipt OCR 不得从 Receipt Total 反推商品价格。
+
+Receipt OCR 不得从 Quantity 反推 Unit Price。
+
+OCR 不猜测缺失字段。
+
+OCR 不翻译或规范化 Product Name。
+
+OCR 不推断 Brand。
+
+OCR 不直接写入 Shopping Record。
+
 ### Receipt Model
 
 Receipt 是独立实体：
@@ -723,28 +808,102 @@ Shopping Record 中保存的价格是：
 
 > **Actual Paid Price**
 
-不是：
+但是 Receipt OCR 不负责计算 Actual Paid Price。
 
-* 原价
-* 标价
-* 未优惠前价格
-* 建议零售价
+Receipt OCR 只识别：
 
-如果收据明确给出最终支付金额：
+> 收据商品行上明确显示的价格。
 
-> 使用最终实际支付金额。
+该价格称为：
 
-如果税费、折扣、退税等信息可以明确计算：
+> **Receipt Line Price**
 
-> 可以计算 Actual Paid Price。
+Receipt Line Price：
 
-如果整单优惠 / 退税需要分摊：
+```text
+=
+该商品行明确显示的金额
+```
 
-> 可以合理计算时进行分摊，但必须让用户确认。
+它不等于：
 
-如果无法可靠确定：
+Actual Paid Price
+Final Effective Cost
+After-tax Price
+Tax-free Price
+Refund-adjusted Price
 
-> 询问用户。
+Receipt OCR 不处理：
+
+折扣
+促销
+Coupon
+税
+税率
+Tax-Free / 免税
+退款
+支付方式
+最终有效成本
+
+Receipt OCR 不进行：
+
+税费计算
+折扣计算
+优惠分摊
+退税计算
+退款计算
+整单总价 → 商品价格反推
+Quantity → Unit Price 反推
+
+如果收据明确显示：
+
+KITKAT × 3    ¥900
+
+OCR：
+
+Product Name = KITKAT
+Quantity = 3
+Receipt Line Price = ¥900
+
+不得计算：
+
+Unit Price = ¥300
+
+如果 Quantity 未明确显示：
+
+Quantity = null
+
+如果 Receipt Line Price 未明确显示：
+
+Receipt Line Price = null
+
+不得猜测。
+
+Receipt Total 即使被识别：
+
+也不得用于反推商品价格。
+
+Receipt OCR 只产生结构化输入：
+
+```text
+Receipt Image
+↓
+OCR
+↓
+Structured Receipt Items
+↓
+Item Draft
+↓
+Review
+↓
+Explicit Confirm
+↓
+Formal Write
+```
+
+正式 Shopping Record 的 Actual Paid Price：
+
+由 Draft / Review / User Confirmation 最终确定。
 
 ---
 

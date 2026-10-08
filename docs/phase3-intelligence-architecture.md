@@ -687,19 +687,25 @@ Receipt Image
 ↓
 OCR
 ↓
-Receipt Understanding
+Product Line Extraction
 ↓
-Tax / Discount Rules
+Explicit Line Price Extraction
 ↓
-Price Allocation
+Structured Receipt Items
 ↓
 Item Drafts
+↓
+Review
+↓
+Explicit Confirm
+↓
+Formal Write
 ```
 
 OCR Boundary：
 
 ```text
-Receipt Image → OCR Result / Structured Receipt Information
+Receipt Image → OCR Result / Structured Receipt Items
 ```
 
 OCR 不负责：
@@ -716,25 +722,49 @@ OCR 不负责：
 
 Brand 继续保持 BLOCKED（L-01）。
 
-Price Allocation（详见 `docs/phase3-product.md` §8.3）：
+### Receipt Line Price Boundary
+
+OCR 仅识别 Receipt 上商品行明确显示的价格。
+
+该价格记录为：
+
+`receipt_line_price`
+
+`receipt_line_price` 表示 Receipt 商品行上明确显示的金额。
+
+它不表示：
 
 ```text
-1. Receipt 明确给出商品最终价格       → 使用该价格
-2. Receipt 明确给出商品级 Discount     → 使用该结果
-3. Receipt 提供税率 / 税额等信息        → 可以作为约束
-4. 日本官方税务规则                     → 权威规则来源
-5. Receipt + 官方规则 + 数学约束
-   → 唯一合理结果                       → 可以生成 Draft
-6. 多个合理结果                         → 不猜、不自动分配，进入 Review
-7. 不允许为了得到完整 Draft 而创造价格
+Actual Paid Price
+Final Effective Cost
+After-tax Price
+Tax-free Price
+Refund-adjusted Price
 ```
+
+OCR 不负责：
 
 ```text
-Official Japanese tax rules are an authoritative rule source
-for receipt understanding / price allocation.
+Discount
+Promotion
+Coupon
+Tax
+Tax Rate
+Tax-Free
+Refund
+Payment Method
+Final Effective Cost
+Price Allocation
+Discount Allocation
+Tax Allocation
+Refund Calculation
 ```
 
-产品层不锁定具体技术实现必须使用 RAG。
+Receipt Total 即使被 OCR 识别，也不得用于反推 Item Price。
+
+如果 Receipt 未明确显示某项信息：
+
+> 保持缺失，不猜测、不计算、不推导。
 
 Receipt Location Prefill：
 
@@ -845,8 +875,6 @@ Price Processing 内部可以记录价格来源，例如：
 
 ```text
 receipt_confirmed
-calculated
-allocated
 user_input
 ```
 
