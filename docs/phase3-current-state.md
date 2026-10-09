@@ -1,6 +1,6 @@
 # Phase 3 Current State
 
-Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C / 3. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Batch 3 I-01 / I-02 shared write infrastructure is implemented; Batch 3 Runtime Review = **PASS**. Brand remains BLOCKED. L-04 / L-05 / L-06 product decisions (OCR / STT / LLM business rules) are **Closed**; implementation / provider integration is **not started**.
+Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C / 3 / 4-A / 4-B / 4-C. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Batch 3 I-01 / I-02 shared write infrastructure is implemented and committed (`c746c49`); Batch 3 docs sync (`5a081c0`) and input-boundary docs sync (`06b5b05`) applied; Batch 3 Runtime Review = **PASS**. Batch 4-A Receipt Draft Group and Batch 4-B receipt extraction boundary are committed in `6b005bb`. Batch 4-C adds a server-side Gemini adapter for OCR, STT, and `gemini-3.5-flash`. Brand remains BLOCKED. L-04 / L-05 / L-06 product decisions are **Closed**. Provider choice for this batch is Gemini. Live OCR, STT, and LLM API results, including LLM field accuracy, are **NOT VERIFIED**. `test:batch4c` injects fake responses and does not call Gemini. Batch 5 / F3-05 is not started.
 
 This document describes **what exists in the repository now**.  
 It is not a product requirements document and not an implementation plan.
@@ -11,18 +11,18 @@ It is not a product requirements document and not an implementation plan.
 
 | Field | Value |
 | :--- | :--- |
-| Date | 2026-10-08 |
+| Date | 2026-10-09 |
 | Branch | `master` (tracking `origin/master`) |
-| Last committed HEAD | docs sync Batch 3 Review PASS — `docs(fmn): sync phase 3 batch 3 state` (hash in git log / commit report) |
-| Prior HEAD before this docs sync | `48dcbad` — `docs(fmn): sync navigation docs after phase 3 batch 2c` |
-| Working tree note | Batch 3 implementation files may remain outside this docs-only sync commit until a separate feature commit |
+| Last committed HEAD | `6b005bb` — `feat: complete batch 4B receipt extraction` (commit contains the Batch 4-A draft group and the Batch 4-B extraction helper; it does not add image OCR or a provider) |
+| Prior HEAD before this docs sync | `15470c5` — `docs: lock batch 4B receipt OCR boundary` |
+| Working tree note | Batch 4-C final commit and push are in progress and are not pushed. Last committed HEAD remains `6b005bb`. `origin/master` still matches `6b005bb`. |
 | Prior Batch 2C feature commit | `0a23547` — `feat(fmn): complete phase 3 batch 2c` |
 | Prior Batch 2B feature commit | `5796e42` — `feat(fmn): implement phase 3 batch 2b — legacy boundary, organize, todo formal path` |
 | Prior Batch 2A feature commit | `fa86bfe` — `feat(fmn): add F3-02 own-history and architecture baseline` |
-| Prior docs sync commit | `bc94852` — `docs(fmn): close L-01/L-02/L-03 and sync phase 3 docs` |
+| Prior docs sync commit | `5a081c0` — `docs(fmn): sync phase 3 batch 3 state` |
 | Prior Batch 1 eslint commit | `4b9c928` — `chore(fmn): add eslint flat config` |
-| Phase 3 batch status | **Batch 1 / 2A / 2B / 2C completed**; **Batch 3 (I-01 / I-02) completed — Review PASS / Ready for Commit** |
-| Verification | `npm run phase3:check` / `test:batch1` / `test:batch2a` / `test:batch2b` / `test:batch2c1` / `test:batch2c2` / `test:batch2c3` / `test:batch3` / `typecheck` / `lint` + local Supabase Batch 3 Runtime Review |
+| Phase 3 batch status | **Batch 1 / 2A / 2B / 2C completed**; **Batch 3 completed and committed (`c746c49`) — Review PASS**; **Batch 4-A Receipt Draft Group implemented** (`6b005bb`); **Batch 4-B extraction boundary implemented** (`6b005bb`); **Batch 4-C Gemini OCR / STT / LLM adapter implemented** (server fetch only, not an Agent). `test:batch4c` is an injected mock and does not call Gemini. Live OCR, STT, and LLM API results, including LLM field accuracy, are **NOT VERIFIED**. |
+| Verification | `npm run phase3:check` / `test:batch1` / `test:batch2a` / `test:batch2b` / `test:batch2c1` / `test:batch2c2` / `test:batch2c3` / `test:batch3` / `test:batch4a` / `test:batch4c` / `typecheck` / `lint` + local Supabase Batch 3 Runtime Review. `test:batch4a` and `test:batch4c` do not call Gemini. |
 
 Related product / decision sources (do not treat as “implemented” unless listed below):
 
@@ -298,7 +298,7 @@ Verification: `scripts/batch2c3-verify.ts` (`npm run test:batch2c3`)
 - Domain: `lib/batch/confirm-batch-writes.ts` → `.rpc(...)` only (no serial insert + compensate)
 - Workflow: `lib/workflows/shared/confirm-batch-write.ts` — validate → optional I-02 promote → RPC → temp cleanup
 - Existing single-record F3-01 `confirmShoppingRecordWrite` / `convertTodoToItem` unchanged
-- No demo multi-record Companion UI invented; shared infrastructure ready for formal Workflows
+- No multi-record Companion UI in Batch 3. Batch 4-A later adds Receipt Draft Group review on the same I-01 path.
 
 #### I-02 — Receipt Temporary Lifecycle
 
@@ -327,6 +327,80 @@ Verification: `scripts/batch2c3-verify.ts` (`npm run test:batch2c3`)
 **Residual risk (non-blocking):** Storage promote is outside the Postgres transaction. After RPC rollback, if best-effort formal Storage delete fails or is skipped, an orphan formal object may remain. DB rows stay consistent (full rollback).
 
 Static verification: `scripts/batch3-verify.ts` (`npm run test:batch3`)
+
+---
+
+### Batch 4-A — Receipt Draft Group
+
+**Status:** Implemented in `6b005bb`. This is not image OCR.
+
+- Client model: `ReceiptDraftGroup` in `lib/companion/types.ts` (`version`, `id`, `createdAt`, `updatedAt`, `receiptImageRef`, `receiptDate`, `merchant`, `items: ShoppingRecordDraft[]`)
+- Persistence: `saveReceiptDraftGroup` / `loadReceiptDraftGroup` / `clearReceiptDraftGroup` in `lib/companion/draft-storage.ts`. Storage key `fmn:draft:receipt_group:active`. One active group. Not a database table.
+- One group holds multiple item drafts. The image ref stays on the group. Each item draft keeps `receiptImageRef` null.
+- Helpers in `lib/workflows/record-input/receipt-draft-group.ts`: `createEmptyReceiptDraftGroup`, `addReceiptItemDraft`, `updateReceiptItemDraft`, `deleteReceiptItemDraft`. Deleting one item does not clear the group image, merchant, or the other items.
+- Review: `components/companion/ReceiptDraftGroupReview.tsx` composes `RecordDraftReview` with `showWriteActions={false}`. Group-level confirm stays on the group. Manual add and per-item delete are in the review. `CompanionHost` starts the group, adds items with `createEmptyShoppingRecordDraft`, deletes items, and uploads the image with `uploadTempReceipt`.
+- Explicit confirm: `CompanionHost.runReceiptGroupWrite` calls `confirmBatchShoppingWrite` once after `getReceiptDraftGroupConfirmState` is ready. Payload is the edited item drafts plus `tempReceiptPath` and `receiptDate`. Merchant is not sent. Cancel cleans the temp image once.
+- `merchant` is draft-only. There is no `receipts.merchant` column in this batch.
+
+Verification: `scripts/batch4a-verify.ts` (`npm run test:batch4a`)
+
+What that script actually checks for 4-A:
+
+- Pure helpers: two items on one group, edit isolation, delete keeps the image and the other item, manual add, confirm readiness false until every item is complete.
+- Source text only: `ReceiptDraftGroupReview.tsx` contains `RecordDraftReview` and `ImageUploader`; `CompanionHost.tsx` contains `confirmBatchShoppingWrite`.
+
+What it does not check:
+
+- No browser run, no Supabase write, no temp-upload round trip, and no assertion that a receipt image becomes item drafts.
+
+---
+
+### Batch 4-B — Receipt Extraction Boundary
+
+**Status:** Extraction helper implemented in `6b005bb`. Product decision L-04 is closed. This helper is not image OCR. Gemini image recognition is the Batch 4-C adapter, and its live API result is **NOT VERIFIED**.
+
+Four separate states:
+
+1. Product decision closed (`15470c5` locks the extraction-only rule in the product / decision / architecture docs and `phase3-project.mdc`).
+2. Extraction boundary/helper implemented (`ReceiptLineExtraction`, `toReceiptLineExtraction`, `receiptDraftGroupFromStructured`).
+3. This helper does not read an image. Gemini image recognition is Batch 4-C.
+4. L-04a is Gemini in Batch 4-C, not a choice made inside this helper. Live API results are **NOT VERIFIED**.
+
+Helper facts in `lib/workflows/record-input/receipt-draft-group.ts`:
+
+- `ReceiptLineExtraction` fields: `product_name`, `receipt_line_price: number | null`, `quantity: number | null`.
+- `toReceiptLineExtraction` / `extractionQuantity` keep a missing quantity null. They do not turn it into 1.
+- `draftQuantityFromExtraction` applies the existing `DEFAULT_QUANTITY` (1) from `lib/quantity.ts` only when building `ShoppingRecordDraft`. An explicit quantity such as 3 is copied through.
+- `itemFromExtraction` copies `receipt_line_price` onto editable `ShoppingRecordDraft.price`. It does not divide that amount by quantity.
+- `receiptDraftGroupFromStructured` builds a `ReceiptDraftGroup` from already-structured lines. It does not read an image.
+- The helper file does not call Supabase and does not insert, update, or delete formal rows.
+- Batch 4-B itself did not call a provider. Batch 4-C now calls `toReceiptLineExtraction` from `lib/providers/gemini/ocr.ts` after a Gemini response, then `receiptDraftGroupFromStructured` from `CompanionHost`.
+- `CompanionHost.handleReceiptImage` still only calls `uploadTempReceipt` / `cleanupTempReceipt`. Sending the image to Gemini is a separate opt-in action.
+
+Verification: same `scripts/batch4a-verify.ts` (`npm run test:batch4a`). This documentation pass describes the script text. It does not record a new runtime log.
+
+What the script actually asserts:
+
+- Case A: helper input `product_name` KITKAT, `receipt_line_price` 900, `quantity` 3. Draft price stays 900 and draft quantity stays 3. Draft price is not 300.
+- Case B: extraction `quantity` null stays null, including `extractionQuantity(undefined)`. The mapped draft quantity is 1. That 1 is the draft default, not an extraction result.
+- Case C: two supplied line prices 900 and 500 stay 900 and 500. The script does not pass a receipt total. It only asserts 900 is not 1400.
+- Case D: a supplied line price 1000 stays 1000 and is not 800. The script does not parse a discount line.
+- Cases E, F, and G are not executed. The section title mentions tax, Tax-Free, and refund. The body has no tax, Tax-Free, or refund fixture. A source check that the helper file does not contain the word `tax` is not a receipt scenario.
+- Case H: source text of the helper must not contain `supabase`, `.insert(`, `.update(`, `.delete(`, or `receipt_line_price / quantity`. This does not query the database.
+
+---
+
+### Batch 4-C — Gemini OCR, STT, and constrained LLM
+
+**Status:** Server adapter implemented. Provider choice is Gemini, model `gemini-3.5-flash`. No Gemini SDK was added. Calls use server `fetch` to the official generateContent endpoint. `GEMINI_API_KEY` is read only on the server. The local diagnostic request to `127.0.0.1:7453` has been removed. This Batch 4-C commit and push are in progress and are not pushed; no new commit hash is recorded here. Live OCR, STT, and LLM API results, including LLM field accuracy, are **NOT VERIFIED**.
+
+- OCR: `recognizeReceiptLines` reads an owned temp receipt only after `consent: true`, then `extractReceiptLinesFromImage`. Lines pass through `toReceiptLineExtraction`. `CompanionHost` appends them with `receiptDraftGroupFromStructured`. The review remains `ReceiptDraftGroupReview`. Confirm is still `confirmBatchShoppingWrite`.
+- STT: `transcribeSpeech` accepts audio only after consent. The transcript is passed to the existing local `submitText` path. Audio is not stored.
+- LLM: `structureShoppingText` sends the current text only after consent. Vague phrases and explicit confirm phrases are rejected before a draft is created. Explicit fields become a `ShoppingRecordDraft` through `shoppingRecordDraftFromLlmFields`. Missing price, currency, date, and location stay empty. Quantity uses the existing draft default of 1 only when the model did not state one.
+- The plain「发送」button still uses the local rule parser and does not call Gemini.
+- `phase3:check` still bans other OCR/STT/LLM packages. It does not treat this fetch adapter as a banned dependency.
+
+Verification: `scripts/batch4c-verify.ts` (`npm run test:batch4c`) injects fake responses. It does not call Gemini.
 
 ---
 
@@ -378,10 +452,10 @@ Verification: `scripts/batch2b-verify.ts` (`npm run test:batch2b`)
 | Context ≠ Permission | Companion Context is default write/query context; RLS / ownership remain permission boundary |
 | Public search ≠ Private history | `lib/search/**` + `/search` = public; `lib/history/**` = own-history only (isolated) |
 | Organize is read-only | `lib/workflows/organize` reuses history; no item mutations |
-| No AI provider integration | No OCR / STT / LLM packages or providers in application code |
+| No extra AI SDK | Batch 4-C uses a server-side Gemini `fetch` adapter for OCR, STT, and constrained LLM fields. No OCR / STT / LLM SDK package is installed. The adapter is not an Agent. Live API results are **NOT VERIFIED**. Batch 4-B remains a pure extraction helper. |
 | No AI-parallel UI components | No `AIButton` / `AIInput` / `AIForm` in `*.ts` / `*.tsx` |
 | No Agent loop | F3-05 orchestration not implemented |
-| Formal write safety | F3-01 / F3-04 Confirm paths; multi-record Confirm via I-01 RPC; F3-02 / F3-03 read-only |
+| Formal write safety | F3-01 / F3-04 Confirm paths; Receipt Draft Group confirm uses `confirmBatchShoppingWrite` / I-01 RPC; extraction helper does not write; F3-02 / F3-03 read-only |
 | Legacy / New Todo boundary | Fixed UTC `2026-10-02T00:00:00.000Z` |
 | Boundary automation | `npm run phase3:check` |
 
@@ -397,20 +471,20 @@ Closed Later Decisions vs repository implementation:
 | L-02 | Duplicate detection equality | **Closed** | **Implemented** (Batch 2C-3): same-Trip exact AND match; prompt 发现相似 Todo; no auto-merge; Quantity merge only if user chooses. |
 | L-03 | “最近” semantics | **Closed** | **Implemented** (Batch 2C-2): started + has records; `start_date` DESC; max 5; Current Trip short-circuit; no time window. |
 
-Still Later (do not invent closures):
+Product decisions closed. Do not invent new closures. Batch 4-C selected Gemini; a live API call is still unverified:
 
-L-04 / L-05 / L-06 — Product Decisions Closed; Implementation Not Implemented.
+L-04 / L-05 / L-06 product decisions are Closed. That is not the same as an implemented recognizer or a selected provider.
 
 | ID | Topic | Product Decision | Implementation |
 | :--- | :--- | :--- | :--- |
-| L-04 | Receipt OCR business rules | ✅ Closed | Not implemented |
-| L-05 | Voice STT business rules | ✅ Closed | Not implemented |
-| L-06 | LLM business rules | ✅ Closed | Not implemented |
-| L-04a | OCR provider | Later (Implementation) | Not implemented |
-| L-05a | STT provider | Later (Implementation) | Not implemented |
-| L-06a | LLM provider | Later (Implementation) | Not implemented |
+| L-04 | Receipt OCR business rules | ✅ Closed | Extraction helper plus Gemini OCR adapter (Batch 4-C). Live API not verified. |
+| L-05 | Voice STT business rules | ✅ Closed | Gemini transcript adapter (Batch 4-C). Live API not verified. |
+| L-06 | LLM business rules | ✅ Closed | `gemini-3.5-flash` structured fields (Batch 4-C). Live API not verified. |
+| L-04a | OCR provider | Gemini for Batch 4-C | Server fetch adapter. Not live-verified. |
+| L-05a | STT provider | Gemini for Batch 4-C | Server fetch adapter. Not live-verified. |
+| L-06a | LLM provider | `gemini-3.5-flash` | Server fetch adapter. Not live-verified. |
 
-L-04 / L-05 / L-06 product boundaries are closed; implementation / provider integration is the next authorized scope.
+L-04 / L-05 / L-06 product boundaries stay closed. Batch 4-C may call Gemini only after user consent, and only into Draft review.
 
 Additional open inputs (not Later Decisions):
 
@@ -419,35 +493,38 @@ Additional open inputs (not Later Decisions):
 | I-01 batch transaction RPC | **Completed** (Batch 3) + Runtime Review PASS |
 | I-02 receipt temp lifecycle | **Completed** (Batch 3) + Runtime Review PASS |
 | Storage vs DB TX residual risk | Known non-blocking: orphan formal Storage object possible if post-rollback cleanup fails |
-| Multi-record Companion UI | Not invented in Batch 3; wire when F3-01 Receipt / F3-05 batch flows need it |
+| Multi-record Companion UI | Receipt Draft Group review exists (Batch 4-A). F3-05 orchestration is not implemented. |
 
 ---
 
 ## 5. Next Development Slice
 
-Suggested next coding slices (not started):
-
-1. Batch 3 / Shared Write Infrastructure — **已完成**（I-01 / I-02 Runtime Review PASS）
-2. Batch 4 / F3-01 Receipt + Voice（Provider integration；L-04 / L-05 / L-06 Product Decisions 已 Closed）
-3. Batch 5 / F3-05 bounded orchestration（LLM 只能提允许的 Intent；Workflow Router 决定实际执行）
-4. Batch 6 / Hardening only（只修 implementation correctness / security / RLS / error handling / provider failure / idempotency / draft recovery / cleanup / regression / boundary violations；**不得新增产品能力**）
+1. Batch 3 / Shared Write Infrastructure — **已完成**（I-01 / I-02 Runtime Review PASS；implementation commit `c746c49`；docs sync `5a081c0` / `06b5b05`）
+2. Batch 4-A / Receipt Draft Group — **已实现**（`6b005bb`）。范围限于本地草稿组、多商品草稿、编辑 / 删除 / 手动新增、以及既有 `confirmBatchShoppingWrite`。不是 OCR。
+3. Batch 4-B / Receipt extraction boundary — **边界 helper 已实现**（`6b005bb`）。
+4. Batch 4-C / Gemini OCR + STT + `gemini-3.5-flash` — **服务端适配已实现**。`test:batch4c` 是注入的 Mock，不调用 Gemini。真实 OCR、STT、LLM 结果及 LLM 字段准确性为 **NOT VERIFIED**。用户必须先授权。失败时仍可手动输入。不开始 Batch 5。
+5. Batch 5 / F3-05 bounded orchestration — **未开始**。不得提前实现。
+6. Batch 6 / Hardening only（只修 implementation correctness / security / RLS / error handling / provider failure / idempotency / draft recovery / cleanup / regression / boundary violations；**不得新增产品能力**）— 未作为本状态的下一授权实现。
 
 不创建未经 Product Owner 批准的 Batch 7。
 
 ### Current implementation status
 
-- OCR = not implemented
-- STT = not implemented
-- LLM = not implemented
-- Provider integration = not implemented
+- Receipt Draft Group = implemented (Batch 4-A)
+- Receipt extraction helper = implemented (Batch 4-B)
+- Gemini OCR / STT / `gemini-3.5-flash` adapter = implemented (Batch 4-C)
+- Live OCR, STT, and LLM API results, including LLM field accuracy = **NOT VERIFIED**
+- Provider integration = server fetch only; no SDK package
 
-L-04 / L-05 / L-06 product boundaries are closed; implementation / provider integration is the next authorized scope.
+L-04 / L-05 / L-06 product boundaries are closed. Batch 4-C selects Gemini / `gemini-3.5-flash`. That selection is not a successful live API test.
 
 Remain forbidden:
 
 - Brand field / Brand inference (L-01 Closed: Brand stays BLOCKED)
 - Duplicate auto-merge (L-02 Closed: prompt only, never auto-merge)
-- Provider / OCR / STT / LLM integration without authorized Batch 4 scope（product boundaries 已 Closed，但 implementation 仍未开始）
+- OCR / STT / LLM packages other than the server-side Gemini fetch adapter
+- Putting `GEMINI_API_KEY` in a `NEXT_PUBLIC_` variable or in the client
+- Treating Batch 4-B as a shipped OCR feature
 - Agent loop / F3-05 early
 - Converting public `lib/search` into private history
 
@@ -471,7 +548,7 @@ Remain forbidden:
    - `docs/phase3-component-library.md`
    - `.cursor/rules/phase3-*.mdc`
 
-4. L-04 / L-05 / L-06 Product Decisions（OCR / STT / LLM 业务规则）已 Closed；Provider 选择（L-04a / L-05a / L-06a）仍属 Later / Implementation。未进入 authorized Batch 4 scope 前，不得接入 Provider、不得安装 OCR / STT / LLM package、不得创建 Provider integration。Do not invent Brand despite L-01 Destination being implemented.
+4. L-04 / L-05 / L-06 Product Decisions（OCR / STT / LLM 业务规则）已 Closed。Batch 4-C 使用 Gemini / `gemini-3.5-flash`，密钥只放服务端 `GEMINI_API_KEY`。不得安装其它 OCR / STT / LLM package，不得把未校验的模型输出写成正式记录。Do not invent Brand despite L-01 Destination being implemented.
 
 5. Prefer:
 

@@ -23,6 +23,8 @@ type ReceiptDraftGroupReviewProps = {
   onAddItem: () => void;
   onDeleteItem: (itemId: string) => void;
   onImageFile: (file: File | null) => void;
+  onExtractLines?: () => void;
+  extracting?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -37,6 +39,8 @@ export function ReceiptDraftGroupReview({
   onAddItem,
   onDeleteItem,
   onImageFile,
+  onExtractLines,
+  extracting = false,
   onConfirm,
   onCancel,
 }: ReceiptDraftGroupReviewProps) {
@@ -112,6 +116,21 @@ export function ReceiptDraftGroupReview({
       ) : null}
       {uploadingImage ? (
         <p className="text-xs text-[var(--color-ink-muted)]">正在上传临时收据…</p>
+      ) : null}
+      {group.receiptImageRef && onExtractLines ? (
+        <div className="space-y-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-3">
+          <p className="text-xs text-[var(--color-ink-muted)]">
+            授权后将发送给 Gemini：当前这张临时收据图片。不发送历史记录或完整购物记录，也不会写入正式记录。
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={writing || uploadingImage || extracting}
+            onClick={onExtractLines}
+          >
+            {extracting ? "识别中…" : "授权并识别商品行"}
+          </Button>
+        </div>
       ) : null}
 
       <div className="flex items-center justify-between gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/foundation/Button";
 import { Textarea } from "@/components/foundation/Textarea";
@@ -47,10 +47,17 @@ import type { ItemWithDisplay } from "@/lib/items/types";
 import type { ShoppingTodoWithDisplay } from "@/lib/todos/types";
 import { confirmShoppingRecordWrite } from "@/lib/workflows/record-input/confirm-write";
 import {
+  recognizeReceiptLines,
+  structureShoppingText,
+  transcribeSpeech,
+} from "@/lib/workflows/record-input/gemini-actions";
+import { shoppingRecordDraftFromLlmFields } from "@/lib/workflows/record-input/llm-draft";
+import {
   addReceiptItemDraft,
   createEmptyReceiptDraftGroup,
   deleteReceiptItemDraft,
   getReceiptDraftGroupConfirmState,
+  receiptDraftGroupFromStructured,
 } from "@/lib/workflows/record-input/receipt-draft-group";
 import {
   buildShoppingRecordDraftFromText,
@@ -105,6 +112,10 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     null,
   );
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [providerBusy, setProviderBusy] = useState(false);
+  const [pendingAudio, setPendingAudio] = useState<Blob | null>(null);
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const [todoDraft, setTodoDraft] = useState<ShoppingTodoDraft | null>(null);
   const [task, setTask] = useState<TaskState | null>(null);
   const [writing, setWriting] = useState(false);
@@ -682,13 +693,152 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     }
   }
 
-  function handleSubmitText() {
+  function currentTripOptions() {
+    const trip =
+      context.tripId != null
+        ? trips.find((t) => t.id === context.tripId) ?? null
+        : null;
+    return {
+      tripId: context.entry === "trip" ? context.tripId : null,
+      tripLabel:
+        context.entry === "trip"
+          ? context.tripName ?? trip?.name ?? null
+          : null,
+    };
+  }
+
+  async function handleRecognizeReceipt() {
+    if (!receiptGroup?.receiptImageRef) return;
+    setProviderBusy(true);
+    setWriteError(null);
+    try {
+      const result = await recognizeReceiptLines({
+        tempPath: receiptGroup.receiptImageRef,
+        consent: true,
+      });
+      if (!result.ok) {
+        setWriteError(result.error);
+        appendMessage("system", `${result.error} 收据草稿仍保留。`);
+        return;
+      }
+      const trip = currentTripOptions();
+      let next = receiptGroup;
+      for (const line of result.value) {
+        const built = receiptDraftGroupFromStructured(
+          { items: [line] },
+          trip,
+        );
+        const item = built.items[0];
+        if (item) next = addReceiptItemDraft(next, item);
+      }
+      persistReceiptGroup(next);
+      appendMessage(
+        "assistant",
+        `已加入 ${result.value.length} 条待确认商品草稿。请核对价格和数量后再确认写入。`,
+      );
+    } finally {
+      setProviderBusy(false);
+    }
+  }
+
+  async function handleStructureWithGemini() {
     const raw = input.trim();
-    if (!raw) return;
-    appendMessage("user", raw);
+    if (!raw || draft || todoDraft || receiptGroup) return;
+    setProviderBusy(true);
+    setWriteError(null);
+    try {
+      const result = await structureShoppingText({ text: raw, consent: true });
+      if (!result.ok) {
+        setWriteError(result.error);
+        appendMessage("system", result.error);
+        return;
+      }
+      const trip = currentTripOptions();
+      const next = shoppingRecordDraftFromLlmFields(result.value, {
+        sourceText: raw,
+        tripId: trip.tripId,
+        tripLabel: trip.tripLabel,
+      });
+      saveDraft(next);
+      const nextTask = createTaskState({
+        goal: "F3-01 文本录入购物记录",
+        context,
+        draftId: next.id,
+        draftType: "shopping_record",
+        currentStep: "review",
+      });
+      saveTaskState(nextTask);
+      setDraft(next);
+      setTask(nextTask);
+      setInput("");
+      appendMessage("user", raw);
+      appendMessage(
+        "assistant",
+        "已整理为待确认草稿。缺失项仍为空，请核对后点击「确认写入正式记录」。",
+      );
+    } finally {
+      setProviderBusy(false);
+    }
+  }
+
+  async function handleTranscribe() {
+    if (!pendingAudio) return;
+    setProviderBusy(true);
+    setWriteError(null);
+    try {
+      const body = new FormData();
+      body.set("consent", "true");
+      body.set("audio", pendingAudio, "speech.webm");
+      const result = await transcribeSpeech(body);
+      setPendingAudio(null);
+      if (!result.ok) {
+        setWriteError(result.error);
+        appendMessage("system", result.error);
+        return;
+      }
+      submitText(result.value);
+    } finally {
+      setProviderBusy(false);
+    }
+  }
+
+  async function toggleRecording() {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      appendMessage("system", "当前浏览器不能录音。可以改用手动输入。");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        setRecording(false);
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        setPendingAudio(blob.size > 0 ? blob : null);
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch {
+      appendMessage("system", "无法使用麦克风。可以改用手动输入。");
+    }
+  }
+
+  function submitText(raw: string) {
+    const text = raw.trim();
+    if (!text) return;
+    appendMessage("user", text);
     setInput("");
 
-    if ((draft || todoDraft || receiptGroup) && isExplicitConfirmIntent(raw)) {
+    if ((draft || todoDraft || receiptGroup) && isExplicitConfirmIntent(text)) {
       if (draft) void runFormalWrite("intent");
       else if (todoDraft) void runTodoFormalWrite("intent");
       else if (receiptGroup) void runReceiptGroupWrite("intent");
@@ -707,7 +857,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       return;
     }
 
-    const intent = classifyCompanionIntent(raw);
+    const intent = classifyCompanionIntent(text);
 
     if (intent === "ambiguous") {
       appendMessage(
@@ -718,22 +868,22 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     }
 
     if (intent === "history") {
-      void runHistorySearch(raw);
+      void runHistorySearch(text);
       return;
     }
 
     if (intent === "organize") {
-      void runOrganizeFlow(raw);
+      void runOrganizeFlow(text);
       return;
     }
 
     if (intent === "todo") {
-      startTodoDraftFromText(raw);
+      startTodoDraftFromText(text);
       return;
     }
 
     if (intent === "record") {
-      startDraftFromText(raw);
+      startDraftFromText(text);
       return;
     }
 
@@ -741,6 +891,10 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       "assistant",
       "请说明意图：录入（商品名称：…，价格 …）；查询（查 Anessa）；整理（按货币分别统计总花费）；代办（帮我加一个 Anessa，3000 日元，在松本清买）。",
     );
+  }
+
+  function handleSubmitText() {
+    submitText(input);
   }
 
   function handleCancelDraft() {
@@ -793,7 +947,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     }
   }
 
-  const busy = writing || searching || uploadingReceipt;
+  const busy = writing || searching || uploadingReceipt || providerBusy;
   const hasAnyDraft = Boolean(draft || todoDraft || receiptGroup);
 
   return (
@@ -887,6 +1041,8 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
               onAddItem={handleAddReceiptItem}
               onDeleteItem={handleDeleteReceiptItem}
               onImageFile={(file) => void handleReceiptImage(file)}
+              onExtractLines={() => void handleRecognizeReceipt()}
+              extracting={providerBusy}
               onConfirm={() => void runReceiptGroupWrite("button")}
               onCancel={handleCancelReceiptGroup}
             />
@@ -970,6 +1126,52 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
               disabled={busy}
               rows={3}
             />
+            {!draft && !todoDraft && !receiptGroup ? (
+              <div className="space-y-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-3">
+                <p className="text-xs text-[var(--color-ink-muted)]">
+                  授权后将发送给 Gemini：当前输入框里的文字。不发送历史记录或完整购物记录。整理结果进入待确认草稿，不会直接保存。
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy || !input.trim()}
+                    onClick={() => void handleStructureWithGemini()}
+                  >
+                    {providerBusy ? "整理中…" : "授权并整理"}
+                  </Button>
+                </div>
+                <p className="text-xs text-[var(--color-ink-muted)]">
+                  授权后将发送给 Gemini：一段语音，只用于转写。原始语音不会保存。转写文字随后走现有手动发送流程。
+                </p>
+                <input
+                  type="file"
+                  accept="audio/webm,audio/wav,audio/mp4,audio/mpeg"
+                  disabled={busy}
+                  onChange={(event) => {
+                    setPendingAudio(event.target.files?.[0] ?? null);
+                  }}
+                />
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => void toggleRecording()}
+                  >
+                    {recording ? "停止录音" : "录一段语音"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy || !pendingAudio}
+                    onClick={() => void handleTranscribe()}
+                  >
+                    授权并转写
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <div className="flex justify-end gap-2">
               {!draft && !todoDraft && !receiptGroup ? (
                 <Button
@@ -991,7 +1193,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
               </Button>
             </div>
             <p className="text-xs text-[var(--color-ink-muted)]">
-              规则/手动模式（L-06 未关闭）。查询与整理只读；仅明确确认后才会写入正式记录或代办。
+              「发送」仍走本地规则，不会把文字发给 Gemini。查询与整理只读；仅明确确认后才会写入正式记录或代办。
             </p>
           </div>
         </div>
