@@ -1,6 +1,6 @@
 # Phase 3 Current State
 
-Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C / 3 / 4-A / 4-B / 4-C. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Batch 3 I-01 / I-02 shared write infrastructure is implemented and committed (`c746c49`); Batch 3 docs sync (`5a081c0`) and input-boundary docs sync (`06b5b05`) applied; Batch 3 Runtime Review = **PASS**. Batch 4-A Receipt Draft Group and Batch 4-B receipt extraction boundary are committed in `6b005bb`. Batch 4-C adds a server-side Gemini adapter for OCR, STT, and `gemini-3.5-flash`. Brand remains BLOCKED. L-04 / L-05 / L-06 product decisions are **Closed**. Provider choice for this batch is Gemini. Live OCR, STT, and LLM API results, including LLM field accuracy, are **NOT VERIFIED**. `test:batch4c` injects fake responses and does not call Gemini. Batch 5 / F3-05 is not started.
+Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C / 3 / 4-A / 4-B / 4-C. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Batch 3 I-01 / I-02 shared write infrastructure is implemented and committed (`c746c49`); Batch 3 docs sync (`5a081c0`) and input-boundary docs sync (`06b5b05`) applied; Batch 3 Runtime Review = **PASS**. Batch 4-A Receipt Draft Group and Batch 4-B receipt extraction boundary are committed in `6b005bb`. Batch 4-C adds a server-side Gemini adapter for OCR, STT, and `gemini-3.5-flash`, committed and pushed in `4a26cfb`. Brand remains BLOCKED. L-04 / L-05 / L-06 product decisions are **Closed**. Provider choice for this batch is Gemini. Live OCR, STT, and LLM API results, including LLM field accuracy, are **NOT VERIFIED**. `test:batch4c` injects fake responses and does not call Gemini. Batch 5 / F3-05 is not started.
 
 This document describes **what exists in the repository now**.  
 It is not a product requirements document and not an implementation plan.
@@ -13,9 +13,10 @@ It is not a product requirements document and not an implementation plan.
 | :--- | :--- |
 | Date | 2026-10-09 |
 | Branch | `master` (tracking `origin/master`) |
-| Last committed HEAD | `6b005bb` — `feat: complete batch 4B receipt extraction` (commit contains the Batch 4-A draft group and the Batch 4-B extraction helper; it does not add image OCR or a provider) |
-| Prior HEAD before this docs sync | `15470c5` — `docs: lock batch 4B receipt OCR boundary` |
-| Working tree note | Batch 4-C final commit and push are in progress and are not pushed. Last committed HEAD remains `6b005bb`. `origin/master` still matches `6b005bb`. |
+| Batch 4-C commit | `4a26cfb` — `feat: complete batch 4 Gemini provider integration`, pushed to `origin/master`. Batch 4-A and Batch 4-B remain in `6b005bb`. |
+| Prior HEAD before this docs sync | `4a26cfb` — `feat: complete batch 4 Gemini provider integration` |
+| Batch 4-B docs commit | `15470c5` — `docs: lock batch 4B receipt OCR boundary` |
+| Working tree note | Before this docs sync, local `master` and `origin/master` both pointed at `4a26cfb`, and the working tree was clean. Batch 4-C has been pushed. Live OCR, STT, and LLM API results, including LLM field accuracy, remain **NOT VERIFIED**. |
 | Prior Batch 2C feature commit | `0a23547` — `feat(fmn): complete phase 3 batch 2c` |
 | Prior Batch 2B feature commit | `5796e42` — `feat(fmn): implement phase 3 batch 2b — legacy boundary, organize, todo formal path` |
 | Prior Batch 2A feature commit | `fa86bfe` — `feat(fmn): add F3-02 own-history and architecture baseline` |
@@ -392,7 +393,7 @@ What the script actually asserts:
 
 ### Batch 4-C — Gemini OCR, STT, and constrained LLM
 
-**Status:** Server adapter implemented. Provider choice is Gemini, model `gemini-3.5-flash`. No Gemini SDK was added. Calls use server `fetch` to the official generateContent endpoint. `GEMINI_API_KEY` is read only on the server. The local diagnostic request to `127.0.0.1:7453` has been removed. This Batch 4-C commit and push are in progress and are not pushed; no new commit hash is recorded here. Live OCR, STT, and LLM API results, including LLM field accuracy, are **NOT VERIFIED**.
+**Status:** Server adapter implemented. Provider choice is Gemini, model `gemini-3.5-flash`. No Gemini SDK was added. Calls use server `fetch` to the official generateContent endpoint. `GEMINI_API_KEY` is read only on the server. The local diagnostic request to `127.0.0.1:7453` has been removed. Batch 4-C is committed and pushed as `4a26cfb` (`feat: complete batch 4 Gemini provider integration`). Live OCR, STT, and LLM API results, including LLM field accuracy, are **NOT VERIFIED**.
 
 - OCR: `recognizeReceiptLines` reads an owned temp receipt only after `consent: true`, then `extractReceiptLinesFromImage`. Lines pass through `toReceiptLineExtraction`. `CompanionHost` appends them with `receiptDraftGroupFromStructured`. The review remains `ReceiptDraftGroupReview`. Confirm is still `confirmBatchShoppingWrite`.
 - STT: `transcribeSpeech` accepts audio only after consent. The transcript is passed to the existing local `submitText` path. Audio is not stored.
