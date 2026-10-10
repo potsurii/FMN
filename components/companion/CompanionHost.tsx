@@ -79,6 +79,7 @@ import {
   TRIP_PICK_PROMPT,
 } from "@/lib/workflows/orchestration/control";
 import { completeExplicitDestination } from "@/lib/workflows/orchestration/destination-complete";
+import type { AgentContext } from "@/lib/workflows/orchestration/loop";
 import { listOwnTripChoices } from "@/lib/workflows/orchestration/trip-choices";
 import type { OrganizeResultView } from "@/lib/workflows/organize/types";
 import {
@@ -131,6 +132,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const agentEpochRef = useRef(0);
+  const agentLoopCtxRef = useRef<AgentContext | null>(null);
   const [todoDraft, setTodoDraft] = useState<ShoppingTodoDraft | null>(null);
   const [task, setTask] = useState<TaskState | null>(null);
   const [writing, setWriting] = useState(false);
@@ -973,6 +975,14 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   }
 
   async function runAgentTurn(text: string, epoch: number): Promise<boolean> {
+    const ctx: AgentContext = {
+      entry: context.entry,
+      tripId: context.entry === "trip" ? context.tripId : null,
+      tripLabel: context.tripName,
+      sourceText: text,
+      cancelled: false,
+    };
+    agentLoopCtxRef.current = ctx;
     const step = await advanceAgentTask({
       text,
       entry: context.entry,
@@ -980,6 +990,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       task,
       suggestDestination: completeExplicitDestination,
       listTripChoices: listOwnTripChoices,
+      ctx,
     });
     if (agentEpochRef.current !== epoch) return true;
     if (step.kind === "passthrough") return false;
@@ -1088,17 +1099,29 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       return true;
     }
 
+    if (step.kind === "loop-text") {
+      saveTaskState(step.task);
+      setTask(step.task);
+      appendMessage("assistant", step.text);
+      return true;
+    }
+
+    if (step.kind === "loop-tool-draft") {
+      saveDraft(step.draft);
+      saveTaskState(step.task);
+      setTask(step.task);
+      if (step.draft.draftType === "shopping_todo") {
+        setDraft(null);
+        setTodoDraft(step.draft);
+      } else {
+        setTodoDraft(null);
+        setDraft(step.draft);
+      }
+      appendMessage("assistant", step.text);
+      return true;
+    }
+
     return false;
-  }
-
-  function handleSubmitText() {
-    submitText(input);
-  }
-
-  function invalidateAgentWork() {
-    const next = cancelSurface(agentEpochRef.current);
-    agentEpochRef.current = next.epoch;
-    setRecentPick(next.recentPick);
   }
 
   function clearCancelledSurface() {
@@ -1123,6 +1146,17 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     setSearching(false);
     setWriteError(null);
     setTodoDuplicates(null);
+  }
+
+  function handleSubmitText() {
+    submitText(input);
+  }
+
+  function invalidateAgentWork() {
+    if (agentLoopCtxRef.current) agentLoopCtxRef.current.cancelled = true;
+    const next = cancelSurface(agentEpochRef.current);
+    agentEpochRef.current = next.epoch;
+    setRecentPick(next.recentPick);
   }
 
   function handleCancelDraft() {

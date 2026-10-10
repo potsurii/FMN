@@ -276,3 +276,44 @@ Preserve the closed conversation and Draft lifecycle decisions:
 - Task-state persistence must reuse the existing task-storage boundary unless an approved implementation decision establishes a necessary change.
 
 Do not assume the current task-storage implementation
+
+## 10. Tool Proposal Protocol（Model B）
+
+### Loop
+
+```text
+User Input
+    ↓
+Agent assembles request (including tool list + current context)
+    ↓
+Invoke LLM
+    ↓
+LLM returns: Text | Tool Proposal
+    ↓
+Agent validates proposal
+├─ Whitelisted? → No → Reject + Feedback
+├─ Parameters valid? → No → Ask user
+├─ Confirmation required? → Yes → Pause for confirmation
+└─ Yes → Execute tool
+    ↓
+Return result to LLM
+    ↓
+LLM decides: Continue / Complete / Follow-up
+    ↓
+Loop (max 6 steps)
+
+### Context Passed to LLM
+
+Each request includes:
+- Current user input
+- Current Trip context (entry / tripId)
+- Current TaskState (goal / completedSteps / pendingQuestions)
+- Allowed tool list (functionDeclarations)
+- Minimal necessary history (do not send full records)
+
+### Security Boundaries (Unchanged)
+
+- LLM proposes → Agent executes
+- Official write tool (confirmWrite) is not exposed to LLM
+- Draft → Review → Explicit Confirm → Write cannot be bypassed
+- LLM cannot directly write to DB

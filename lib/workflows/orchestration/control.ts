@@ -1,15 +1,26 @@
 /**
- * Batch 5 slice 2 — bounded task control.
- * Recognizes a fixed set of sentences and stores the reading on TaskState.
+ * Batch 5 — task control.
+ * Pending questions and an active sequence stay on the existing helpers.
+ * Every other turn goes through the tool-proposal loop.
  */
 
 import { createTaskState } from "@/lib/companion/task-storage";
-import type { CompanionEntry, ShoppingTodoDraft, TaskState } from "@/lib/companion/types";
+import type {
+  CompanionEntry,
+  ShoppingRecordDraft,
+  ShoppingTodoDraft,
+  TaskState,
+} from "@/lib/companion/types";
 import { extractDestination } from "@/lib/trips/destination-parse";
+import {
+  runAgentLoop,
+  type AgentContext,
+  type AgentLoopRequest,
+  type AgentLoopResult,
+} from "@/lib/workflows/orchestration/loop";
 import {
   continueJapanSunscreenTask,
   type SunscreenHistoryRow,
-  userAskedToCompareCurrentTrip,
 } from "@/lib/workflows/orchestration/sequence";
 
 const NOT_A_PLACE = new Set([
@@ -68,6 +79,13 @@ export type AgentStep =
       task: TaskState;
       draft: ShoppingTodoDraft;
       text: string;
+    }
+  | { kind: "loop-text"; text: string; task: TaskState }
+  | {
+      kind: "loop-tool-draft";
+      draft: ShoppingRecordDraft | ShoppingTodoDraft;
+      task: TaskState;
+      text: string;
     };
 
 const EMPTY_FACTS: AgentFacts = {
@@ -94,27 +112,6 @@ export function agentAllowsTodoConfirm(
 ): boolean {
   if (task?.finalState === "cancelled") return false;
   return Boolean(tripId && tripId.trim());
-}
-
-function ownedPhrase(
-  text: string,
-): "own-history" | "naha" | "gap" | "this-sort" | "japan-todo" | null {
-  const t = text.trim();
-  if (!t) return null;
-  if (/我想买一款防晒/.test(t)) return "gap";
-  if (
-    /上次/.test(t) &&
-    /日本/.test(t) &&
-    /防晒/.test(t) &&
-    /下一次日本/.test(t) &&
-    /代办/.test(t)
-  ) {
-    return "japan-todo";
-  }
-  if (/我买过的所有防晒/.test(t)) return "own-history";
-  if (/整理/.test(t) && /那霸/.test(t) && /购物/.test(t)) return "naha";
-  if (/把这次旅行买的东西按价格从高到低/.test(t)) return "this-sort";
-  return null;
 }
 
 function facts(partial: Partial<AgentFacts>): AgentFacts {
@@ -209,6 +206,66 @@ async function placeFromText(
   return { place: accepted, task: marked };
 }
 
+function loopTask(
+  input: {
+    text: string;
+    entry: CompanionEntry;
+    currentTripId: string | null;
+  },
+  fromLoop: TaskState | null,
+): TaskState {
+  return (
+    fromLoop ??
+    begin(input.text.trim(), input.entry, input.currentTripId, input.text.trim())
+  );
+}
+
+function taskWithDraft(
+  task: TaskState,
+  draft: ShoppingRecordDraft | ShoppingTodoDraft,
+): TaskState {
+  return {
+    ...task,
+    updatedAt: new Date().toISOString(),
+    currentStep: "review",
+    pendingQuestions: [],
+    draftId: draft.id,
+    draftType: draft.draftType,
+  };
+}
+
+function stepFromLoop(
+  input: {
+    text: string;
+    entry: CompanionEntry;
+    currentTripId: string | null;
+  },
+  result: AgentLoopResult,
+): AgentStep {
+  if (result.kind === "cancelled") return { kind: "stopped" };
+  const task = loopTask(input, result.task);
+  if (result.kind === "choose-trip") {
+    return {
+      kind: "choose-trip",
+      text: input.text.trim(),
+      task,
+      candidates: result.candidates,
+    };
+  }
+  if (result.kind === "provider-error" || result.kind === "tool-error") {
+    return { kind: "loop-text", text: result.error, task };
+  }
+  if (result.draft) {
+    return {
+      kind: "loop-tool-draft",
+      draft: result.draft,
+      text: result.text,
+      task: taskWithDraft(task, result.draft),
+    };
+  }
+  return { kind: "loop-text", text: result.text, task };
+}
+
 export async function advanceAgentTask(input: {
   text: string;
   entry: CompanionEntry;
@@ -216,6 +273,12 @@ export async function advanceAgentTask(input: {
   task: TaskState | null;
   suggestDestination?: (text: string) => Promise<string | null>;
   listTripChoices?: () => Promise<TripChoice[]>;
+  /**
+   * The loop reads `.cancelled` on this object.
+   * Callers must mutate that field. Do not replace the object mid-turn.
+   */
+  ctx?: AgentContext;
+  requestWithTools?: AgentLoopRequest;
 }): Promise<AgentStep> {
   if (input.task?.finalState === "cancelled") return { kind: "stopped" };
 
@@ -231,177 +294,26 @@ export async function advanceAgentTask(input: {
     return resumeSequence(input.task);
   }
 
-  const phrase = ownedPhrase(input.text);
-  if (!phrase) return { kind: "passthrough" };
-
-  if (phrase === "gap") {
-    const task = stamp(
-      begin(input.text.trim(), input.entry, input.currentTripId, input.text.trim()),
-      facts({ operation: "gap", scope: "public", destination: "absent", trip: "absent" }),
-      { currentStep: "done", pendingQuestions: [] },
-    );
-    return { kind: "message", text: PUBLIC_SUNSCREEN_GAP, task };
+  const ctx: AgentContext = input.ctx ?? {
+    entry: input.entry,
+    tripId: input.currentTripId,
+    tripLabel: null,
+    sourceText: input.text,
+    cancelled: false,
+  };
+  if (input.ctx) {
+    input.ctx.entry = input.entry;
+    input.ctx.tripId = input.currentTripId;
+    input.ctx.sourceText = input.text;
   }
 
-  if (phrase === "own-history") {
-    const task = stamp(
-      begin(input.text.trim(), input.entry, input.currentTripId, input.text.trim()),
-      facts({
-        operation: "history",
-        scope: "own",
-        destination: "absent",
-        trip: "absent",
-      }),
-      { currentStep: "history" },
-    );
-    return { kind: "history", text: input.text.trim(), task };
-  }
-
-  if (phrase === "japan-todo") {
-    if (userAskedToCompareCurrentTrip(input.text)) {
-      const task = stamp(
-        begin(input.text.trim(), input.entry, input.currentTripId, input.text.trim()),
-        facts({
-          operation: "sequence",
-          scope: "own",
-          destination: "japan",
-          trip: "unresolved",
-        }),
-        {
-          currentStep: "wait",
-          pendingQuestions: [
-            "如果要排除当前旅行已经买过的商品，请单独说明。这一步不会自动比较。",
-          ],
-        },
-      );
-      return {
-        kind: "ask",
-        text: "如果要排除当前旅行已经买过的商品，请单独说明。这一步不会自动比较。",
-        task,
-      };
-    }
-    const task = stamp(
-      begin(input.text.trim(), input.entry, input.currentTripId, input.text.trim()),
-      facts({
-        operation: "sequence",
-        scope: "own",
-        destination: "japan",
-        trip: "unresolved",
-      }),
-      { currentStep: "history" },
-    );
-    return {
-      kind: "history-then-todo",
-      historyText: "上次去日本买过防晒",
-      task,
-    };
-  }
-
-  if (phrase === "naha") {
-    const started = begin(
-      input.text.trim(),
-      input.entry,
-      input.currentTripId,
-      input.text.trim(),
-    );
-    const resolved = await placeFromText(
-      input.text.trim(),
-      started,
-      input.suggestDestination,
-    );
-    if (!resolved.place) {
-      const task = stamp(
-        resolved.task,
-        facts({
-          operation: "organize",
-          scope: "own",
-          destination: "unresolved",
-          trip: "absent",
-        }),
-        { currentStep: "wait", pendingQuestions: [DESTINATION_UNRESOLVED] },
-        { destinationAttempts: 1 },
-      );
-      return { kind: "ask", text: DESTINATION_UNRESOLVED, task };
-    }
-    const task = stamp(
-      resolved.task,
-      facts({
-        operation: "organize",
-        scope: "own",
-        destination: "reliable",
-        trip: "absent",
-      }),
-      { currentStep: "organize", pendingQuestions: [] },
-    );
-    return {
-      kind: "organize",
-      text: input.text.trim(),
-      task,
-      forcedDestination: resolved.place,
-      confirmedTripId: null,
-    };
-  }
-
-  return startThisTripSort(input);
-}
-
-async function startThisTripSort(input: {
-  text: string;
-  entry: CompanionEntry;
-  currentTripId: string | null;
-  listTripChoices?: () => Promise<TripChoice[]>;
-}): Promise<AgentStep> {
-  const original = input.text.trim();
-  if (input.entry === "trip" && input.currentTripId) {
-    const task = stamp(
-      begin(original, input.entry, input.currentTripId, original),
-      facts({
-        operation: "organize",
-        scope: "own",
-        destination: "absent",
-        trip: "context",
-        sort: "price_desc",
-      }),
-      { currentStep: "organize" },
-    );
-    return {
-      kind: "organize",
-      text: original,
-      task,
-      forcedDestination: null,
-      confirmedTripId: input.currentTripId,
-    };
-  }
-
-  let choices: TripChoice[] = [];
-  try {
-    choices = input.listTripChoices ? await input.listTripChoices() : [];
-  } catch {
-    choices = [];
-  }
-  const task = stamp(
-    begin(original, input.entry, null, original),
-    facts({
-      operation: "organize",
-      scope: "own",
-      destination: "absent",
-      trip: "unresolved",
-      sort: "price_desc",
-    }),
-    {
-      currentStep: "wait",
-      pendingQuestions: [TRIP_PICK_PROMPT],
-    },
-    { candidates: choices },
-  );
-  if (choices.length === 0) {
-    return {
-      kind: "ask",
-      text: "还没有可选的旅行。确认之前不会排序。",
-      task,
-    };
-  }
-  return { kind: "choose-trip", text: original, task, candidates: choices };
+  const result = await runAgentLoop({
+    text: input.text.trim(),
+    ctx,
+    task: input.task,
+    requestWithTools: input.requestWithTools,
+  });
+  return stepFromLoop(input, result);
 }
 
 function resumeSequence(task: TaskState): AgentStep {
@@ -550,3 +462,5 @@ export function applyJapanHistory(
   }
   return { kind: "message", text: continued.message, task: continued.task };
 }
+
+// CHECKPOINT 5 DONE
