@@ -32,6 +32,10 @@ export async function runOrganize(input: {
   defaultTripId?: string | null;
   entry?: "global" | "trip";
   selectedTripId?: string | null;
+  /** Trip chosen for global「这次」 sorting. Does not auto-pick a single trip. */
+  confirmedTripId?: string | null;
+  /** Place already checked against the user sentence. */
+  forcedDestination?: string | null;
 }): Promise<RunOrganizeResult> {
   const supabase = await createClient();
   const {
@@ -55,6 +59,15 @@ export async function runOrganize(input: {
     ...parsed.spec,
     filter: { ...parsed.spec.filter },
   };
+
+  if (input.forcedDestination?.trim()) {
+    spec.filter.destination = input.forcedDestination.trim();
+    if (!input.confirmedTripId) delete spec.filter.tripId;
+  }
+  if (input.confirmedTripId?.trim()) {
+    spec.filter.tripId = input.confirmedTripId.trim();
+    delete spec.filter.recentTrip;
+  }
 
   if (spec.filter.recentTrip && !spec.filter.tripId) {
     if (input.selectedTripId) {
@@ -120,7 +133,12 @@ export async function runOrganize(input: {
     }
   }
 
-  if (!spec.filter.tripId && !parsed.spec.filter.recentTrip && input.defaultTripId) {
+  if (
+    !spec.filter.tripId &&
+    !parsed.spec.filter.recentTrip &&
+    input.defaultTripId &&
+    !input.forcedDestination?.trim()
+  ) {
     spec.filter = { ...spec.filter, tripId: input.defaultTripId };
   }
 

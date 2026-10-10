@@ -16,7 +16,6 @@ import {
 import { ReceiptDraftGroupReview } from "@/components/companion/ReceiptDraftGroupReview";
 import { TodoDraftReview } from "@/components/companion/TodoDraftReview";
 import { TodoDuplicatePrompt } from "@/components/companion/TodoDuplicatePrompt";
-import { isExplicitConfirmIntent } from "@/lib/companion/confirm-intent";
 import {
   clearDraft,
   clearReceiptDraftGroup,
@@ -63,9 +62,24 @@ import {
   buildShoppingRecordDraftFromText,
   getShoppingRecordDraftMissing,
 } from "@/lib/workflows/record-input/text-parse";
-import { classifyCompanionIntent } from "@/lib/workflows/historical-search/parse-query";
+import {
+  activeWorkCancelEffect,
+  NOTHING_TO_CANCEL_MESSAGE,
+  routeCompanionText,
+  UNSUPPORTED_CROSS_WORKFLOW_MESSAGE,
+} from "@/lib/workflows/historical-search/parse-query";
 import { runOwnHistorySearch } from "@/lib/workflows/historical-search/run-search";
 import { runOrganize } from "@/lib/workflows/organize/run-organize";
+import {
+  advanceAgentTask,
+  agentAllowsTodoConfirm,
+  cancelSurface,
+  japanTodoFromHistoryResult,
+  shouldCommitAgentResult,
+  TRIP_PICK_PROMPT,
+} from "@/lib/workflows/orchestration/control";
+import { completeExplicitDestination } from "@/lib/workflows/orchestration/destination-complete";
+import { listOwnTripChoices } from "@/lib/workflows/orchestration/trip-choices";
 import type { OrganizeResultView } from "@/lib/workflows/organize/types";
 import {
   cleanupTempReceipt,
@@ -116,6 +130,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   const [pendingAudio, setPendingAudio] = useState<Blob | null>(null);
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const agentEpochRef = useRef(0);
   const [todoDraft, setTodoDraft] = useState<ShoppingTodoDraft | null>(null);
   const [task, setTask] = useState<TaskState | null>(null);
   const [writing, setWriting] = useState(false);
@@ -129,6 +144,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     flow: "history" | "organize";
     text: string;
     candidates: RecentTripCandidate[];
+    confirmedTrip?: boolean;
   } | null>(null);
   const [todoDuplicates, setTodoDuplicates] = useState<
     ShoppingTodoWithDisplay[] | null
@@ -154,6 +170,15 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       return;
     }
     setTask(existingTask);
+    if (existingTask.pendingQuestions[0]) {
+      setMessages([
+        {
+          id: `restore_${existingTask.id}`,
+          role: "assistant",
+          text: existingTask.pendingQuestions[0],
+        },
+      ]);
+    }
     if (existingTask.draftId && existingTask.draftType) {
       const d = loadDraft(existingTask.draftType, existingTask.draftId);
       if (d?.draftType === "shopping_record") {
@@ -341,18 +366,23 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   async function runOrganizeFlow(
     raw: string,
     selectedTripId?: string | null,
+    extra?: { confirmedTripId?: string | null; forcedDestination?: string | null },
   ) {
+    const requestEpoch = agentEpochRef.current;
     setSearching(true);
     setOrganizeView(null);
     setHistoryView(null);
-    if (!selectedTripId) setRecentPick(null);
+    if (!selectedTripId && !extra?.confirmedTripId) setRecentPick(null);
     try {
       const result = await runOrganize({
         text: raw,
         defaultTripId: context.entry === "trip" ? context.tripId : null,
         entry: context.entry,
         selectedTripId: selectedTripId ?? null,
+        confirmedTripId: extra?.confirmedTripId ?? null,
+        forcedDestination: extra?.forcedDestination ?? null,
       });
+      if (!shouldCommitAgentResult(requestEpoch, agentEpochRef.current)) return;
 
       if (!result.ok) {
         if (result.kind === "choose_trip") {
@@ -368,10 +398,18 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
           result.kind === "blocked" ? "system" : "assistant",
           result.error,
         );
+        if (extra?.confirmedTripId || extra?.forcedDestination) {
+          clearTaskState();
+          setTask(null);
+        }
         return;
       }
 
       setRecentPick(null);
+      if (extra?.confirmedTripId || extra?.forcedDestination) {
+        clearTaskState();
+        setTask(null);
+      }
       setOrganizeView(result.view);
       appendMessage(
         "assistant",
@@ -380,10 +418,13 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
           : `已整理 ${result.view.recordCount} 条记录（只读）。记录条数与数量合计分开展示；金额按币种独立汇总。`,
       );
     } catch (err) {
+      if (!shouldCommitAgentResult(requestEpoch, agentEpochRef.current)) return;
       const msg = err instanceof Error ? err.message : "整理失败，请重试";
       appendMessage("system", msg);
     } finally {
-      setSearching(false);
+      if (shouldCommitAgentResult(requestEpoch, agentEpochRef.current)) {
+        setSearching(false);
+      }
     }
   }
 
@@ -601,6 +642,11 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     duplicateAck?: "create_new",
   ) {
     if (!todoDraft) return;
+    if (!agentAllowsTodoConfirm(task, todoDraft.tripId)) {
+      setWriteError("请选择所属旅行后再确认写入");
+      appendMessage("system", "目标旅行尚未指定，尚未写入。");
+      return;
+    }
     const { complete, missing } = getShoppingTodoDraftMissing(todoDraft);
     if (!complete) {
       setWriteError(`请先补齐：${missing.join("、")}`);
@@ -838,14 +884,32 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     appendMessage("user", text);
     setInput("");
 
-    if ((draft || todoDraft || receiptGroup) && isExplicitConfirmIntent(text)) {
+    const route = routeCompanionText(text, {
+      draft: Boolean(draft),
+      todo: Boolean(todoDraft),
+      receipt: Boolean(receiptGroup),
+    });
+
+    if (route === "cancel") {
+      invalidateAgentWork();
+      const hasActiveWork = Boolean(task || draft || todoDraft || receiptGroup);
+      if (activeWorkCancelEffect(hasActiveWork) === "no-active-work") {
+        appendMessage("assistant", NOTHING_TO_CANCEL_MESSAGE);
+        return;
+      }
+      clearCancelledSurface();
+      appendMessage("system", "已取消当前草稿。");
+      return;
+    }
+
+    if (route === "confirm") {
       if (draft) void runFormalWrite("intent");
       else if (todoDraft) void runTodoFormalWrite("intent");
       else if (receiptGroup) void runReceiptGroupWrite("intent");
       return;
     }
 
-    if (draft || todoDraft || receiptGroup) {
+    if (route === "keep-draft") {
       appendMessage(
         "assistant",
         draft
@@ -857,7 +921,22 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       return;
     }
 
-    const intent = classifyCompanionIntent(text);
+    const epoch = agentEpochRef.current;
+    void (async () => {
+      const handled = await runAgentTurn(text, epoch);
+      if (agentEpochRef.current !== epoch) return;
+      if (!handled) dispatchPlainIntent(route, text);
+    })();
+  }
+
+  function dispatchPlainIntent(
+    intent: ReturnType<typeof routeCompanionText>,
+    text: string,
+  ) {
+    if (intent === "unsupported") {
+      appendMessage("assistant", UNSUPPORTED_CROSS_WORKFLOW_MESSAGE);
+      return;
+    }
 
     if (intent === "ambiguous") {
       appendMessage(
@@ -893,12 +972,138 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
     );
   }
 
+  async function runAgentTurn(text: string, epoch: number): Promise<boolean> {
+    const step = await advanceAgentTask({
+      text,
+      entry: context.entry,
+      currentTripId: context.entry === "trip" ? context.tripId : null,
+      task,
+      suggestDestination: completeExplicitDestination,
+      listTripChoices: listOwnTripChoices,
+    });
+    if (agentEpochRef.current !== epoch) return true;
+    if (step.kind === "passthrough") return false;
+    if (step.kind === "stopped") return true;
+
+    if (step.kind === "ask") {
+      saveTaskState(step.task);
+      setTask(step.task);
+      appendMessage("assistant", step.text);
+      return true;
+    }
+
+    if (step.kind === "choose-trip") {
+      saveTaskState(step.task);
+      setTask(step.task);
+      appendMessage("assistant", TRIP_PICK_PROMPT);
+      setRecentPick({
+        flow: "organize",
+        text: step.text,
+        confirmedTrip: true,
+        candidates: step.candidates.map((candidate) => ({
+          id: candidate.id,
+          name: candidate.name,
+          startDate: "",
+        })),
+      });
+      return true;
+    }
+
+    if (step.kind === "message") {
+      appendMessage("assistant", step.text);
+      clearTaskState();
+      setTask(null);
+      return true;
+    }
+
+    if (step.kind === "history") {
+      await runHistorySearch(step.text);
+      if (agentEpochRef.current !== epoch) return true;
+      clearTaskState();
+      setTask(null);
+      return true;
+    }
+
+    if (step.kind === "organize") {
+      await runOrganizeFlow(step.text, null, {
+        confirmedTripId: step.confirmedTripId,
+        forcedDestination: step.forcedDestination,
+      });
+      if (agentEpochRef.current !== epoch) return true;
+      clearTaskState();
+      setTask(null);
+      return true;
+    }
+
+    if (step.kind === "history-then-todo") {
+      const result = await runOwnHistorySearch({
+        text: step.historyText,
+        defaultTripId: null,
+        entry: "global",
+      });
+      if (!shouldCommitAgentResult(epoch, agentEpochRef.current)) return true;
+      const applied = japanTodoFromHistoryResult(
+        step.task,
+        result.ok
+          ? {
+              ok: true,
+              items: result.items.map((item) => ({
+                name: item.name,
+                category: item.category,
+              })),
+            }
+          : { ok: false, error: result.error },
+      );
+      if (applied.kind === "todo-draft") {
+        saveDraft(applied.draft);
+        saveTaskState(applied.task);
+        setDraft(null);
+        setTodoDraft(applied.draft);
+        setTask(applied.task);
+        appendMessage("assistant", applied.text);
+        return true;
+      }
+      if (applied.kind === "ask") {
+        saveTaskState(applied.task);
+        setTask(applied.task);
+        appendMessage("assistant", applied.text);
+        return true;
+      }
+      if (applied.kind === "message") {
+        appendMessage("assistant", applied.text);
+        clearTaskState();
+        setTask(null);
+        return true;
+      }
+      return true;
+    }
+
+    if (step.kind === "todo-draft") {
+      saveDraft(step.draft);
+      saveTaskState(step.task);
+      setDraft(null);
+      setTodoDraft(step.draft);
+      setTask(step.task);
+      appendMessage("assistant", step.text);
+      return true;
+    }
+
+    return false;
+  }
+
   function handleSubmitText() {
     submitText(input);
   }
 
-  function handleCancelDraft() {
-    const tempReceiptPath = draft?.receiptImageRef ?? null;
+  function invalidateAgentWork() {
+    const next = cancelSurface(agentEpochRef.current);
+    agentEpochRef.current = next.epoch;
+    setRecentPick(next.recentPick);
+  }
+
+  function clearCancelledSurface() {
+    const tempReceiptPath =
+      draft?.receiptImageRef ?? receiptGroup?.receiptImageRef ?? null;
     if (task) {
       cancelTaskAndClearDraft(task);
     } else if (draft) {
@@ -908,14 +1113,21 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       clearDraft("shopping_todo", todoDraft.id);
       clearTaskState();
     }
-    if (tempReceiptPath) {
-      void cleanupTempReceipt(tempReceiptPath);
-    }
+    if (receiptGroup) clearReceiptDraftGroup();
+    if (tempReceiptPath) void cleanupTempReceipt(tempReceiptPath);
     setDraft(null);
     setTodoDraft(null);
+    setReceiptGroup(null);
     setTask(null);
+    setRecentPick(null);
+    setSearching(false);
     setWriteError(null);
     setTodoDuplicates(null);
+  }
+
+  function handleCancelDraft() {
+    invalidateAgentWork();
+    clearCancelledSurface();
     appendMessage("system", "已取消当前草稿。");
   }
 
@@ -999,7 +1211,11 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
             <CandidateSelector
               variant="trip"
               title="选择旅行"
-              description="选择后将直接查询，无需再次确认。"
+              description={
+                recentPick.confirmedTrip
+                  ? "请点选这次要整理的旅行。点选之后才会排序。"
+                  : "选择后将直接查询，无需再次确认。"
+              }
               candidates={recentPick.candidates.map((c) => ({
                 id: c.id,
                 title: c.name,
@@ -1009,7 +1225,9 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
               onSelect={(id) => {
                 const pending = recentPick;
                 setRecentPick(null);
-                if (pending.flow === "history") {
+                if (pending.confirmedTrip) {
+                  void runOrganizeFlow(pending.text, null, { confirmedTripId: id });
+                } else if (pending.flow === "history") {
                   void runHistorySearch(pending.text, id);
                 } else {
                   void runOrganizeFlow(pending.text, id);
@@ -1193,7 +1411,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
               </Button>
             </div>
             <p className="text-xs text-[var(--color-ink-muted)]">
-              「发送」仍走本地规则，不会把文字发给 Gemini。查询与整理只读；仅明确确认后才会写入正式记录或代办。
+              「发送」默认走本地规则。只有当前这句话里的目的地识别失败时，才会把这一句发给 Gemini 补全，并且只采用原句里已经写出的地名。查询与整理只读；仅明确确认后才会写入正式记录或代办。
             </p>
           </div>
         </div>

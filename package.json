@@ -17,6 +17,8 @@
     "test:batch3": "npx --yes tsx scripts/batch3-verify.ts",
     "test:batch4a": "npx --yes tsx scripts/batch4a-verify.ts",
     "test:batch4c": "npx --yes tsx scripts/batch4c-verify.ts",
+    "test:batch5s1": "npx --yes tsx scripts/batch5s1-verify.ts",
+    "test:batch5s2": "npx --yes tsx scripts/batch5s2-verify.ts",
     "phase3:check": "npx --yes tsx scripts/phase3-boundary-check.ts",
     "architecture:scan": "npx --yes tsx scripts/fmn-architecture-scan.ts"
   },

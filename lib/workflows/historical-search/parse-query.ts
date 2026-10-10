@@ -4,6 +4,7 @@
  * 「最近」 → recentTrip (L-03), not a calendar window.
  */
 
+import { isExplicitCancelIntent, isExplicitConfirmIntent } from "@/lib/companion/confirm-intent";
 import { isCategorySlug, type CategorySlug } from "@/lib/category";
 import type { OwnHistoryQuery } from "@/lib/history/types";
 import {
@@ -24,7 +25,14 @@ export type CompanionIntent =
   | "organize"
   | "todo"
   | "ambiguous"
+  | "cancel"
+  | "unsupported"
   | "none";
+
+export const UNSUPPORTED_CROSS_WORKFLOW_MESSAGE =
+  "当前不能先查询已有购买，再自动整理成一条新的购买记录。请分开查询历史，或说明商品名称和价格后再录入。这不会创建草稿，也不会写入正式记录。";
+
+export const NOTHING_TO_CANCEL_MESSAGE = "当前没有可取消的草稿或任务。";
 
 const HISTORY_CUE_RE =
   /(?:查(?:询|一下|找)?|买过|历史|我的记录|搜(?:索|一下)?|找一找|有没有买)/i;
@@ -36,7 +44,16 @@ const ORGANIZE_CUE_RE =
   /整理|汇总|统计|按分类|按货币|分币种|总花费|帮我整理|分别统计|列出我买过/;
 
 const TODO_CUE_RE =
-  /帮我加(?:一个|条)?|加入代办|购物代办|准备买|计划买|创建代办|\btodo\b/i;
+  /帮我加(?:一个|条)?|加入代办|购物代办|记到待办|待办|准备买|计划买|创建代办|\btodo\b/i;
+
+const HISTORY_QUESTION_RE =
+  /花了多少|多少钱|什么时候|在哪买|上次买|最近一次买|上次购买|最近一次购买/;
+
+const SORT_CUE_RE =
+  /按价格从高|按价格从低|从高到低|从低到高|价格降序|价格升序/;
+
+const CROSS_WORKFLOW_RECORD_RE =
+  /整理成(?:一条)?(?:购买记录|购物记录|记录)/;
 
 const RECENT_RE = /最近/;
 
@@ -71,11 +88,18 @@ const NAME_BOUGHT_RE =
 export function classifyCompanionIntent(text: string): CompanionIntent {
   const t = text.trim();
   if (!t) return "none";
+  if (isExplicitCancelIntent(t)) return "cancel";
+  if (CROSS_WORKFLOW_RECORD_RE.test(t)) return "unsupported";
 
-  const organize = ORGANIZE_CUE_RE.test(t);
+  const historyQuestion = HISTORY_QUESTION_RE.test(t);
+  const sortCue = SORT_CUE_RE.test(t);
+  const organize = ORGANIZE_CUE_RE.test(t) || sortCue;
   const todo = TODO_CUE_RE.test(t);
-  const history = HISTORY_CUE_RE.test(t);
+  const history = HISTORY_CUE_RE.test(t) || historyQuestion;
   const record = RECORD_CUE_RE.test(t);
+
+  if (historyQuestion && !todo && !sortCue) return "history";
+  if (sortCue && !todo && !historyQuestion) return "organize";
 
   const hits = [organize, todo, history, record].filter(Boolean).length;
   if (hits > 1) {
@@ -87,6 +111,34 @@ export function classifyCompanionIntent(text: string): CompanionIntent {
   if (history) return "history";
   if (record) return "record";
   return "none";
+}
+
+export type CompanionRouteKind =
+  | CompanionIntent
+  | "confirm"
+  | "keep-draft";
+
+export function activeWorkCancelEffect(
+  hasActiveWork: boolean,
+): "cancel-active" | "no-active-work" {
+  return hasActiveWork ? "cancel-active" : "no-active-work";
+}
+
+/**
+ * Single-workflow route. Cancel wins. An open draft blocks a new workflow.
+ * Confirm still requires the existing explicit-confirm phrases.
+ */
+export function routeCompanionText(
+  text: string,
+  active: { draft: boolean; todo: boolean; receipt: boolean },
+): CompanionRouteKind {
+  const t = text.trim();
+  if (!t) return "none";
+  if (isExplicitCancelIntent(t)) return "cancel";
+  const hasDraft = active.draft || active.todo || active.receipt;
+  if (hasDraft && isExplicitConfirmIntent(t)) return "confirm";
+  if (hasDraft) return "keep-draft";
+  return classifyCompanionIntent(t);
 }
 
 function pad2(n: string): string {
@@ -116,6 +168,12 @@ function extractName(text: string): string | null {
     if (name && !CATEGORY_HINTS.some((h) => h.re.test(name))) {
       return name.slice(0, 80);
     }
+  }
+  const question = text.match(
+    /买(?:了)?(?:一)?(?:盒|个|条|支|瓶|包)?\s*([A-Za-z0-9\u4e00-\u9fff]{1,20}?)(?=花了|是什么|什么时候|在哪|多少)/,
+  );
+  if (question?.[1] && !/^(什么|啥|哪些|东西)$/.test(question[1])) {
+    return question[1].slice(0, 80);
   }
   return null;
 }
@@ -261,6 +319,14 @@ export function parseOwnHistoryQuery(text: string): HistoryParseResult {
   );
   if (locMatch?.[1]) {
     query.location = locMatch[1].trim();
+  }
+
+  if (HISTORY_QUESTION_RE.test(raw) && !query.name && !query.destination && !query.category) {
+    return {
+      status: "ask",
+      message:
+        "没有识别出要查询的商品名。请说明商品，例如「上次买的铅笔花了多少钱」。不会创建购买记录。",
+    };
   }
 
   const hasFilter = Object.values(query).some(
