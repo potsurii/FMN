@@ -68,7 +68,7 @@ const DATE_RE = /\b(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})\b/;
 const UUID_RE =
   /\b([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\b/i;
 
-const LIST_ALL_RE = /^(?:查询?我的记录|我的(?:购物)?记录|列出我的记录)$/i;
+const LIST_ALL_RE = /^(?:查询?我的记录|我的(?:购物)?记录|列出我的记录|我?买过(?:哪些|什么|啥)?(?:东西|商品|记录|物品)?)\s*[？?。.]?$/i;
 
 const CATEGORY_HINTS: Array<{ re: RegExp; slug: CategorySlug }> = [
   { re: /防晒|口红|护肤|美妆|cosmetic|beauty/i, slug: "beauty" },

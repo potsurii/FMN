@@ -179,19 +179,27 @@ section("question cues are not product names");
     return parseOwnHistoryQuery(text);
   }
 
-  for (const text of [
-    "查询哪些东西",
-    "我买过哪些东西",
-    "查一下什么东西",
-    "我买过什么",
-    "我买过啥",
-    "我买过什么东西",
-    "买过多少",
-  ]) {
-    const result = parsed(text);
-    assert.equal(result.status, "ask", text);
-    assert.equal("query" in result, false, text);
-  }
+  // 纯疑问（无"买过"）→ ask
+    for (const text of ["查询哪些东西", "查一下什么东西", "买过多少"]) {
+      const result = parsed(text);
+      assert.equal(result.status, "ask", text);
+      assert.equal("query" in result, false, text);
+    }
+
+    // 泛"我买过 X" → ok（全部记录），name/category 为空
+    for (const text of [
+      "我买过哪些东西",
+      "我买过什么",
+      "我买过啥",
+      "我买过什么东西",
+    ]) {
+      const result = parsed(text);
+      assert.equal(result.status, "ok", text);
+      if (result.status === "ok") {
+        assert.equal(result.query.name, undefined, text);
+        assert.equal(result.query.category, undefined, text);
+      }
+    }
 
   const sunscreen = parsed("查询哪些防晒产品");
   assert.equal(sunscreen.status, "ok");

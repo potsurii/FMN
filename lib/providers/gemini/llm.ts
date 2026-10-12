@@ -143,6 +143,12 @@ export async function requestWithTools(input: {
       body: bodyWithTools(input.body, input.tools),
       timeoutMs: input.timeoutMs ?? GEMINI_TIMEOUT_MS,
     });
+    if (response.status === 429) {
+      return providerFailure("provider", "AI 今日调用已达上限，明天会恢复。可以手动输入。");
+    }
+    if (response.status >= 500) { 
+      return providerFailure("provider", "AI服务暂不可用,请稍后重试。");
+    }
     if (response.status < 200 || response.status >= 300) {
       return providerFailure("provider", "Gemini 没有返回可用结果。请稍后重试。");
     }
