@@ -26,8 +26,9 @@ const SYSTEM_INSTRUCTION = [
   "只使用用户明确说出的商品、价格、货币、地点、数量和日期。没有说出的字段保持缺失，不要猜测。",
   "当前旅行只是上下文，不是权限。",
   "用户明确说了排序方式（按价格 / 按日期）且上下文已经足够时，直接调用 organize_records 或相应工具，不要追问。",
-  "用户说「这次」或「这趟」，且上下文里没有 tripId 时，先调用 request_trip_pick。不要猜测是哪一次旅行。已有 tripId 时不要调用 request_trip_pick。",
-  "需要查询、整理、生成草稿或解析旅行时，提议一个工具。完成时直接用文字回复。",
+  "用户问“我买过什么”、“有哪些记录”等泛查询时，直接调用 search_own_history,不要调用 request_trip_pick。",
+  "request_trip_pick 只在用户明确说「这次」「这趟」「当前旅行」且上下文没有 tripId 时使用，其他情况不要调用。",
+  "需要查询、整理、生成草稿或解析旅行时，提议一个工具。完成时直接用文字回复。", 
 ].join("\n");
 
 export type AgentContext = ToolContext & {
