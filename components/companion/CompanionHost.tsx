@@ -1007,16 +1007,25 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       saveTaskState(step.task);
       setTask(step.task);
       appendMessage("assistant", TRIP_PICK_PROMPT);
-      setRecentPick({
-        flow: "organize",
-        text: step.text,
-        confirmedTrip: true,
-        candidates: step.candidates.map((candidate) => ({
-          id: candidate.id,
-          name: candidate.name,
-          startDate: "",
-        })),
-      });
+      const candidates = step.candidates.map((candidate) => ({
+        id: candidate.id,
+        name: candidate.name,
+        startDate: "",
+      }));
+      if (step.source === "history") {
+        setRecentPick({
+          flow: "history",
+          text: step.text,
+          candidates,
+        });
+      } else {
+        setRecentPick({
+          flow: "organize",
+          text: step.text,
+          confirmedTrip: true,
+          candidates,
+        });
+      }
       return true;
     }
 

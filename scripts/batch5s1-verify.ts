@@ -173,4 +173,54 @@ section("open draft blocks a new workflow and still requires explicit confirm");
   assert.equal(routeCompanionText("好的", openRecord), "keep-draft");
 }
 
+section("question cues are not product names");
+{
+  function parsed(text: string) {
+    return parseOwnHistoryQuery(text);
+  }
+
+  for (const text of [
+    "查询哪些东西",
+    "我买过哪些东西",
+    "查一下什么东西",
+    "我买过什么",
+    "我买过啥",
+    "我买过什么东西",
+    "买过多少",
+  ]) {
+    const result = parsed(text);
+    assert.equal(result.status, "ask", text);
+    assert.equal("query" in result, false, text);
+  }
+
+  const sunscreen = parsed("查询哪些防晒产品");
+  assert.equal(sunscreen.status, "ok");
+  if (sunscreen.status === "ok") {
+    assert.equal(sunscreen.query.name, undefined);
+    assert.equal(sunscreen.query.category, "beauty");
+  }
+
+  const dior = parsed("查询 Dior 口红");
+  assert.equal(dior.status, "ok");
+  if (dior.status === "ok") {
+    assert.equal(dior.query.name, "Dior 口红");
+    assert.equal(dior.query.category, "beauty");
+  }
+
+  const pencil = parsed("上次买的铅笔花了多少钱");
+  assert.equal(pencil.status, "ok");
+  if (pencil.status === "ok") {
+    assert.equal(pencil.query.name, "铅笔");
+    assert.equal(pencil.query.category, undefined);
+  }
+
+  const all = parsed("查询我的记录");
+  assert.equal(all.status, "ok");
+  if (all.status === "ok") {
+    assert.equal(all.query.name, undefined);
+    assert.equal(all.query.category, undefined);
+    assert.equal(all.summary, "你的全部购物记录（有限条数）");
+  }
+}
+
 console.log("\nBatch 5 slice 1 verify passed.\n");

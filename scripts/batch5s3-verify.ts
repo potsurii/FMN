@@ -196,6 +196,111 @@ async function main() {
     assert.equal(result.kind, "cancelled");
   }
 
+  section("search_own_history choose_trip interrupts as history");
+  {
+    const tool = TOOL_REGISTRY.find((item) => item.name === "search_own_history");
+    assert.ok(tool);
+    const original = tool.handler;
+    tool.handler = async () => ({
+      ok: true,
+      data: {
+        status: "choose_trip",
+        candidates: [
+          { id: "trip-a", name: "Bangkok" },
+          { id: "trip-b", name: "Tokyo" },
+        ],
+      },
+    });
+    try {
+      const request: AgentLoopRequest = async () =>
+        okTurn({
+          text: null,
+          functionCall: { name: "search_own_history", args: { text: "我最近买了什么" } },
+        });
+      const result = await runAgentLoop({
+        text: "我最近买了什么",
+        ctx: ctx(),
+        task: null,
+        requestWithTools: request,
+      });
+      assert.equal(result.kind, "choose-trip");
+      if (result.kind === "choose-trip") {
+        assert.equal(result.source, "history");
+        assert.equal(result.candidates.length, 2);
+      }
+    } finally {
+      tool.handler = original;
+    }
+  }
+
+  section("organize_records choose_trip interrupts as organize");
+  {
+    const tool = TOOL_REGISTRY.find((item) => item.name === "organize_records");
+    assert.ok(tool);
+    const original = tool.handler;
+    tool.handler = async () => ({
+      ok: true,
+      data: {
+        status: "choose_trip",
+        candidates: [{ id: "trip-a", name: "Bangkok" }],
+      },
+    });
+    try {
+      const request: AgentLoopRequest = async () =>
+        okTurn({
+          text: null,
+          functionCall: { name: "organize_records", args: { text: "整理最近的记录" } },
+        });
+      const result = await runAgentLoop({
+        text: "整理最近的记录",
+        ctx: ctx(),
+        task: null,
+        requestWithTools: request,
+      });
+      assert.equal(result.kind, "choose-trip");
+      if (result.kind === "choose-trip") {
+        assert.equal(result.source, "organize");
+        assert.equal(result.candidates.length, 1);
+      }
+    } finally {
+      tool.handler = original;
+    }
+  }
+
+  section("request_trip_pick pick_trip interrupts as pick");
+  {
+    const tool = TOOL_REGISTRY.find((item) => item.name === "request_trip_pick");
+    assert.ok(tool);
+    const original = tool.handler;
+    tool.handler = async () => ({
+      ok: true,
+      data: {
+        status: "pick_trip",
+        candidates: [{ id: "trip-a", name: "Bangkok" }],
+      },
+    });
+    try {
+      const request: AgentLoopRequest = async () =>
+        okTurn({
+          text: null,
+          functionCall: { name: "request_trip_pick", args: {} },
+        });
+      const result = await runAgentLoop({
+        text: "把这次旅行买的东西按价格排序",
+        ctx: ctx(),
+        task: null,
+        requestWithTools: request,
+      });
+      assert.equal(result.kind, "choose-trip");
+      if (result.kind === "choose-trip") {
+        assert.equal(result.source, "pick");
+        assert.equal(result.candidates.length, 1);
+      }
+    } finally {
+      tool.handler = original;
+    }
+  }
+
   section("text from the model ends the loop");
   {
     const request: AgentLoopRequest = async () =>

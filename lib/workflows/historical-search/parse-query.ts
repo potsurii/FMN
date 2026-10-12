@@ -79,11 +79,22 @@ const CATEGORY_HINTS: Array<{ re: RegExp; slug: CategorySlug }> = [
   { re: /电子|耳机|手机|electronics/i, slug: "electronics" },
 ];
 
+const NOT_A_PRODUCT =
+  /^(东西|产品|的|了|呢|吗|吧|什么|啥|哪些|多少|哪个|哪儿|哪里|何|如何|怎么回事|买过没|买过没有)$/;
+
+function stripQuestionCue(text: string): string {
+  return text
+    .replace(/^(哪些|什么|啥)\s*/, "")
+    .replace(/[吗么？?]+$/, "")
+    .replace(/^的/, "")
+    .trim();
+}
+
 const NAME_AFTER_CHA_RE =
   /查(?:询|一下|找)?\s*[:：]?\s*([A-Za-z0-9\u4e00-\u9fff][\w\u4e00-\u9fff ·-]{0,60})/;
 
-const NAME_BOUGHT_RE =
-  /买过\s*([A-Za-z0-9\u4e00-\u9fff][\w\u4e00-\u9fff ·-]{0,40}?)(?:吗|么|？|\?|$)/;
+  const NAME_BOUGHT_RE =
+  /买过\s*([A-Za-z0-9\u4e00-\u9fff][\w\u4e00-\u9fff ·-]{0,40}?)(?:吗|？|\?|$)/;
 
 export function classifyCompanionIntent(text: string): CompanionIntent {
   const t = text.trim();
@@ -152,28 +163,33 @@ function extractDate(text: string): string | null {
 }
 
 function extractName(text: string): string | null {
+  function pickName(candidate: string): string | null {
+    const cleaned = stripQuestionCue(candidate);
+    if (!cleaned) return null;
+    if (NOT_A_PRODUCT.test(cleaned)) return null;
+    return cleaned.slice(0, 80);
+  }
+
   const a = text.match(NAME_AFTER_CHA_RE);
   if (a?.[1]) {
-    const name = a[1].trim().replace(/[吗么？?]+$/, "");
-    if (name && !CATEGORY_HINTS.some((h) => h.re.test(name) && name.length <= 4)) {
-      return name.slice(0, 80);
-    }
-    if (name && !CATEGORY_HINTS.some((h) => h.re.test(name))) {
-      return name.slice(0, 80);
+    const result = pickName(a[1]);
+    if (result && !CATEGORY_HINTS.some((h) => h.re.test(result) && result.length <= 4)) {
+      return result;
     }
   }
   const b = text.match(NAME_BOUGHT_RE);
   if (b?.[1]) {
-    const name = b[1].trim();
-    if (name && !CATEGORY_HINTS.some((h) => h.re.test(name))) {
-      return name.slice(0, 80);
+    const result = pickName(b[1]);
+    if (result && !CATEGORY_HINTS.some((h) => h.re.test(result))) {
+      return result;
     }
   }
   const question = text.match(
-    /买(?:了)?(?:一)?(?:盒|个|条|支|瓶|包)?\s*([A-Za-z0-9\u4e00-\u9fff]{1,20}?)(?=花了|是什么|什么时候|在哪|多少)/,
+    /买(?!过)(?:了)?(?:一)?(?:盒|个|条|支|瓶|包)?\s*([A-Za-z0-9\u4e00-\u9fff]{1,20}?)(?=花了|是什么|什么时候|在哪|多少)/,
   );
-  if (question?.[1] && !/^(什么|啥|哪些|东西)$/.test(question[1])) {
-    return question[1].slice(0, 80);
+  if (question?.[1]) {
+    const result = pickName(question[1]);
+    if (result) return result;
   }
   return null;
 }
@@ -274,11 +290,7 @@ export function parseOwnHistoryQuery(text: string): HistoryParseResult {
   }
 
   const name = extractName(raw);
-  if (
-    name &&
-    name !== destination &&
-    !/^(什么|啥|哪些|什么东西)$/.test(name)
-  ) {
+  if (name && name !== destination) {
     query.name = name;
   }
 

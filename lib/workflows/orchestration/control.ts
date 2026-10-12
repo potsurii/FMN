@@ -73,6 +73,7 @@ export type AgentStep =
       text: string;
       task: TaskState;
       candidates: TripChoice[];
+      source: "history" | "organize" | "pick";
     }
   | {
       kind: "todo-draft";
@@ -250,6 +251,7 @@ function stepFromLoop(
       text: input.text.trim(),
       task,
       candidates: result.candidates,
+      source: result.source,
     };
   }
   if (result.kind === "provider-error" || result.kind === "tool-error") {

@@ -46,6 +46,7 @@ export type AgentLoopResult =
   | {
       kind: "choose-trip";
       candidates: Array<{ id: string; name: string }>;
+      source: "history" | "organize" | "pick";
       task: TaskState | null;
       draft: AgentLoopDraft | null;
     };
@@ -128,12 +129,25 @@ function responseObject(data: unknown): Record<string, unknown> {
   return { result: data };
 }
 
+function tripPickSource(
+  status: string,
+  toolName: string,
+): "history" | "organize" | "pick" | null {
+  if (status === "pick_trip" && toolName === "request_trip_pick") return "pick";
+  if (status === "choose_trip" && toolName === "search_own_history") return "history";
+  if (status === "choose_trip" && toolName === "organize_records") return "organize";
+  return null;
+}
+
 function tripPickCandidates(
   result: ToolResult,
-): Array<{ id: string; name: string }> | null {
+  toolName: string,
+): { candidates: Array<{ id: string; name: string }>; source: "history" | "organize" | "pick" } | null {
   if (!result.ok || !result.data || typeof result.data !== "object") return null;
   const data = result.data as { status?: unknown; candidates?: unknown };
-  if (data.status !== "pick_trip" || !Array.isArray(data.candidates)) return null;
+  if (typeof data.status !== "string" || !Array.isArray(data.candidates)) return null;
+  const source = tripPickSource(data.status, toolName);
+  if (!source) return null;
   const candidates = data.candidates.flatMap((row) => {
     if (!row || typeof row !== "object") return [];
     const id = (row as { id?: unknown }).id;
@@ -141,7 +155,7 @@ function tripPickCandidates(
     if (typeof id !== "string" || typeof name !== "string") return [];
     return [{ id, name }];
   });
-  return candidates.length > 0 ? candidates : null;
+  return candidates.length > 0 ? { candidates, source } : null;
 }
 
 function draftFromToolResult(result: ToolResult): AgentLoopDraft | null {
@@ -205,6 +219,12 @@ export async function runAgentLoop(input: {
     }
 
     const { text, functionCall } = turned.value;
+    console.log(
+      "[loop] step",
+      step,
+      functionCall ? "tool" : "text",
+      functionCall?.name ?? "ok",
+    );
     if (!functionCall) {
       return { kind: "text", text: text ?? "", task: input.task, draft };
     }
@@ -266,11 +286,29 @@ export async function runAgentLoop(input: {
       return { kind: "tool-error", error: result.error, task: input.task };
     }
 
+    const toolStatus =
+      result.data && typeof result.data === "object" && "status" in result.data
+        ? (result.data as { status?: unknown }).status
+        : "ok";
+    console.log(
+      "[loop] tool executed:",
+      name,
+      "step",
+      step,
+      "status",
+      typeof toolStatus === "string" ? toolStatus : "ok",
+    );
     const formed = draftFromToolResult(result);
     if (formed) draft = formed;
-    const picks = tripPickCandidates(result);
+    const picks = tripPickCandidates(result, name);
     if (picks) {
-      return { kind: "choose-trip", candidates: picks, task: input.task, draft };
+      return {
+        kind: "choose-trip",
+        candidates: picks.candidates,
+        source: picks.source,
+        task: input.task,
+        draft,
+      };
     }
     contents.push({
       role: "user",
