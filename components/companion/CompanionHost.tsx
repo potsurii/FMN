@@ -214,6 +214,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
   }
 
   function handleClose() {
+    invalidateAgentWork();
     clearConversation();
     setOpen(false);
   }

@@ -135,6 +135,7 @@ export async function runOrganize(input: {
 
   if (
     !spec.filter.tripId &&
+    !spec.filter.destination &&
     !parsed.spec.filter.recentTrip &&
     input.defaultTripId &&
     !input.forcedDestination?.trim()
