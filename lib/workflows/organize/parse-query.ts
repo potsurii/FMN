@@ -288,9 +288,14 @@ export function parseOrganizeQuery(text: string): OrganizeParseResult {
   const aggregateTotalsByCurrency =
     wantsCurrencyTotals(raw) || groupBy === "currency";
 
+  const explicitSort =
+    /价格降序|从贵|贵到便宜|按价格从高|价格升序|从便宜|便宜到贵|按价格从低|从高到低|从低到高/.test(
+      raw,
+    );
   const hasSignal =
     Object.keys(filter).length > 0 ||
     groupBy !== null ||
+    explicitSort ||
     /整理|汇总|统计|列出/.test(raw);
 
   if (!hasSignal) {

@@ -137,6 +137,8 @@ STT → DB
 
 ### LLM Boundary
 
+### LLM Boundary
+
 LLM may:
 
 * understand natural language
@@ -145,9 +147,14 @@ LLM may:
 * create Draft
 * request allowed History Search
 * generate response based on returned data
+* propose a tool call within the Agent-provided tool list
+* include tool name + parameters in a proposal
+* receive tool execution results and continue reasoning
 
 LLM must not:
 
+* execute tools directly (execution belongs to the Agent)
+* trigger a Workflow without Agent validation
 * write DB
 * auto-confirm
 * invent missing data

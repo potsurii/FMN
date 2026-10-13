@@ -1,5 +1,12 @@
 import { isExplicitConfirmIntent } from "@/lib/companion/confirm-intent";
-import { requestGeminiJson, type GeminiCall } from "./call";
+import {
+  defaultGeminiCall,
+  functionCallFromGeminiResponse,
+  requestGeminiJson,
+  textFromGeminiResponse,
+  type GeminiCall,
+} from "./call";
+import { GEMINI_TIMEOUT_MS, geminiGenerateUrl } from "./config";
 import { providerFailure, type ProviderResult } from "./types";
 
 const VAGUE = new Set(["好的", "嗯", "继续", "看起来不错", "ok", "okay"]);
@@ -106,4 +113,56 @@ export async function extractExplicitFields(input: {
     return providerFailure("empty", "没有得到明确写出的购物字段。请改用手动输入。");
   }
   return { ok: true, value: fields };
+}
+
+function bodyWithTools(body: unknown, tools: unknown): unknown {
+  const toolList = Array.isArray(tools) ? tools : [tools];
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    return { ...(body as Record<string, unknown>), tools: toolList };
+  }
+  return { tools: toolList };
+}
+
+export async function requestWithTools(input: {
+  apiKey: string;
+  body: unknown;
+  tools: unknown;
+  call?: GeminiCall;
+  timeoutMs?: number;
+}): Promise<
+  ProviderResult<{
+    text: string | null;
+    functionCall: { name: string; args: unknown; id?: string; thoughtSignature?: string } | null;
+  }>
+> {
+  const call = input.call ?? defaultGeminiCall;
+  try {
+    const response = await call({
+      url: geminiGenerateUrl(),
+      apiKey: input.apiKey,
+      body: bodyWithTools(input.body, input.tools),
+      timeoutMs: input.timeoutMs ?? GEMINI_TIMEOUT_MS,
+    });
+    if (response.status === 429) {
+      return providerFailure("provider", "AI 今日调用已达上限，明天会恢复。可以手动输入。");
+    }
+    if (response.status >= 500) { 
+      return providerFailure("provider", "AI服务暂不可用,请稍后重试。");
+    }
+    if (response.status < 200 || response.status >= 300) {
+      return providerFailure("provider", "Gemini 没有返回可用结果。请稍后重试。");
+    }
+    const text = textFromGeminiResponse(response.json);
+    const functionCall = functionCallFromGeminiResponse(response.json);
+    if (!text && !functionCall) {
+      return providerFailure("empty", "Gemini 返回了空结果。");
+    }
+    return { ok: true, value: { text, functionCall } };
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      return providerFailure("timeout", "Gemini 请求超时。可以改用手动输入。");
+    }
+    return providerFailure("network", "无法连接 Gemini。可以改用手动输入。");
+  }
 }

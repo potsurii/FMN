@@ -50,6 +50,20 @@ export function detectRelativeDestinationTripMode(
   return null;
 }
 
+const SHOPPING_NON_PLACE_RE =
+  /^(?:地点|购买地点|美妆|日用品|食品|衣服|最近|最近一次)$/;
+
+/**
+ * The shopping cue captures whatever sits before 买的 / 旅行买.
+ * Demonstratives, question words, and the trip noun are not places.
+ */
+function placeTokenFromShoppingCue(raw: string): string | null {
+  const token = raw.trim();
+  if (!token || SHOPPING_NON_PLACE_RE.test(token)) return null;
+  if (/这|那|哪|什么|怎么|^把|旅行/.test(token)) return null;
+  return token.slice(0, 80);
+}
+
 export function extractDestination(text: string): string | null {
   const explicit = text.match(EXPLICIT_DEST_RE);
   if (explicit?.[1]) {
@@ -70,13 +84,8 @@ export function extractDestination(text: string): string | null {
 
   const shopping = text.match(PLACE_SHOPPING_RE);
   if (shopping?.[1]) {
-    const token = shopping[1].trim();
-    if (
-      token &&
-      !/^(地点|购买地点|美妆|日用品|食品|衣服|最近|最近一次)$/.test(token)
-    ) {
-      return token.slice(0, 80);
-    }
+    const token = placeTokenFromShoppingCue(shopping[1]);
+    if (token) return token;
   }
 
   return null;

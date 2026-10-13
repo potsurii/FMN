@@ -1005,17 +1005,20 @@ LLM 可以：
 - 通过受控 History Search 获取必要历史结果
 - 生成基于 Workflow 返回结果的自然语言回复
 - 提出允许的 Intent / 下一步 Workflow
+- 在 Agent 提供的工具清单内，提议调用某个工具
+- 提议包含：工具名 + 参数
+- 接收工具执行结果，参与后续推理
 ```
 
 LLM 不可以：
 
 ```text
+- 直接执行工具（执行权在 Agent）
+- 未经 Agent 验证就触发 Workflow
 - 直接写数据库
 - 自动 Confirm
 - 猜测缺失信息
-- 猜测价格
-- 猜测地点
-- 猜测商品
+- 猜测价格 / 地点 / 商品
 - 自行决定权限
 - 自由执行任意 Tool
 - 绕过 Workflow
@@ -1028,6 +1031,16 @@ LLM 不可以：
 LLM ≠ Permission Layer
 LLM ≠ Database Writer
 LLM ≠ unrestricted Agent
+```
+
+### 工具提议 ≠ 工具执行
+
+```text
+Agent 收到 LLM 提议后必须：
+1. 验证工具名在白名单内
+2. 验证参数符合工具 schema
+3. 决定是否执行、是否需要用户确认
+4. 执行后才把结果回传 LLM
 ```
 
 ### LLM Context Boundary
@@ -1167,7 +1180,7 @@ Japan Trips → Sort by Travel Time → Latest Japan Trip
   - Context 无效
       → 列出候选 Trip（start_date 倒序，最多 5，过滤已开始且有 item）
       → 用户选择 = 直接执行
-  - 单一候选 → 直接用
+   - 单一候选 → 仍列候选，等用户确认
   - 无候选 → 告知"没有创建过有 record 的旅行"
 ```
 

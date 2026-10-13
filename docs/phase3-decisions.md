@@ -1583,8 +1583,8 @@ Product Owner
 * 按 `start_date` 降序排列
 * 最多展示 5 个候选 Trip
 * 用户选择后，直接执行查询，不需要第二次确认
-* 如果只有 1 个候选 Trip，直接使用该 Trip，不展示候选列表
-* 如果没有候选 Trip，提示“没有创建过有 record 的旅行”
+* 如果只有 1 个候选 Trip，仍展示候选列表，等用户确认后才执行
+* 如果没有候选 Trip，提示"没有创建过有 record 的旅行"
 
 ### Constraints
 
@@ -1594,6 +1594,7 @@ Product Owner
 * 排除未来尚未开始的 Trip
 * 本 Phase 不区分“最近”与“上次”
 * 不将“最近”自动解释为最近几天
+* 单一候选 Trip 也需用户确认，不静默选择
 
 ### Future Consideration
 
@@ -2056,22 +2057,33 @@ Intent Assistance
 - 理解用户纠正
 - 通过受控 History Search 获取必要历史结果
 - 生成基于 Workflow 返回结果的自然语言回复
-- 提出允许的 Intent / 下一步 Workflow
+- 在 Agent 提供的工具清单内，提议调用某个工具
+- 提议包含：工具名 + 参数
+- 接收工具执行结果，参与后续推理
+- 提出下一步 Workflow 建议
 ```
 
-#### LLM 不可以
+#### LLM 不可以（修订）
 
 ```text
+- 直接执行工具（执行权在 Agent）
+- 未经 Agent 验证就触发 Workflow
 - 直接写数据库
 - 自动 Confirm
 - 猜测缺失信息
-- 猜测价格
-- 猜测地点
-- 猜测商品
+- 猜测价格 / 地点 / 商品
 - 自行决定权限
 - 自由执行任意 Tool
-- 绕过 Workflow
-- 获得完整 Shopping History 作为默认 Context
+```
+
+#### 工具提议 ≠ 工具执行
+
+```text
+Agent 收到 LLM 提议后必须：
+1. 验证工具名在白名单内
+2. 验证参数符合工具 schema
+3. 决定是否执行、是否需要用户确认
+4. 执行后才把结果回传 LLM
 ```
 
 #### LLM Context Boundary

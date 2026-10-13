@@ -16,6 +16,13 @@ const CONFIRM_INTENT_PATTERNS: RegExp[] = [
   /^save\s*(it|this|now)?$/i,
 ];
 
+const CANCEL_INTENT_PATTERNS: RegExp[] = [
+  /^取消刚才那个$/,
+  /^取消刚才的$/,
+  /^取消当前(?:草稿|任务)?$/,
+  /^取消这个(?:草稿|任务)?$/,
+];
+
 const NON_CONFIRM_EXAMPLES = [
   "好的",
   "嗯",
@@ -24,6 +31,15 @@ const NON_CONFIRM_EXAMPLES = [
   "ok",
   "okay",
 ] as const;
+
+export function isExplicitCancelIntent(text: string): boolean {
+  const normalized = text
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[。！？!?]+$/g, "");
+  if (!normalized) return false;
+  return CANCEL_INTENT_PATTERNS.some((re) => re.test(normalized));
+}
 
 export function isExplicitConfirmIntent(text: string): boolean {
   const normalized = text.trim().replace(/\s+/g, "");

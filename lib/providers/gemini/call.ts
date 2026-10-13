@@ -52,6 +52,37 @@ export function textFromGeminiResponse(json: unknown): string | null {
   return texts.trim() ? texts : null;
 }
 
+export function functionCallFromGeminiResponse(
+  json: unknown,
+): { name: string; args: unknown; id?: string; thoughtSignature?: string } | null {
+  if (!json || typeof json !== "object") return null;
+  const candidates = (json as { candidates?: unknown }).candidates;
+  if (!Array.isArray(candidates) || !candidates[0] || typeof candidates[0] !== "object") {
+    return null;
+  }
+  const content = (candidates[0] as { content?: unknown }).content;
+  if (!content || typeof content !== "object") return null;
+  const parts = (content as { parts?: unknown }).parts;
+  if (!Array.isArray(parts)) return null;
+  for (const part of parts) {
+    if (!part || typeof part !== "object") continue;
+    const call = (part as { functionCall?: unknown }).functionCall;
+    if (!call || typeof call !== "object") continue;
+    const name = (call as { name?: unknown }).name;
+    if (typeof name !== "string" || !name.trim()) continue;
+    const args = (call as { args?: unknown }).args;
+    const id = (call as { id?: unknown }).id;
+    const thoughtSignature = (part as { thoughtSignature?: unknown }).thoughtSignature;
+    return {
+      name: name.trim(),
+      args: args === undefined ? {} : args,
+      ...(typeof id === "string" && id ? { id } : {}),
+      ...(typeof thoughtSignature === "string" && thoughtSignature ? { thoughtSignature } : {}),
+    };
+  }
+  return null;
+}
+
 export function parseModelJson(text: string): unknown | null {
   try {
     return JSON.parse(text) as unknown;
@@ -121,3 +152,5 @@ export async function requestGeminiJson(input: {
     return providerFailure("network", "无法连接 Gemini。可以改用手动输入。");
   }
 }
+
+// CHECKPOINT 2 DONE

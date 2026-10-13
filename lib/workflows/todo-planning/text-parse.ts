@@ -151,6 +151,18 @@ function extractProductName(text: string): string {
   const labeled = text.match(PRODUCT_NAME_LABEL_RE);
   if (labeled?.[1]) return labeled[1].trim().replace(/[，,。].*$/, "").trim();
 
+  const bought = text.match(
+    /买(?:一)?(?:盒|个|条|支|瓶|包)?\s*([^，,。]{1,30})/,
+  );
+  if (bought?.[1]) {
+    return bought[1]
+      .trim()
+      .replace(/[，,].*$/, "")
+      .replace(/先记.*$/, "")
+      .replace(/待办.*$/, "")
+      .trim();
+  }
+
   const afterAdd = text.match(PRODUCT_AFTER_ADD_RE);
   if (afterAdd?.[1]) {
     let name = afterAdd[1].trim();
