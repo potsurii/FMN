@@ -2319,11 +2319,11 @@ Cursor Plan v2
 
 # Document Status
 
-**Version:** 1.6
-**Status:** Core Blocking Decisions Closed
-**Later Decisions:** L-04 / L-05 / L-06 Product Decisions Closed；L-04a / L-05a / L-06a Provider Selection = Later（Implementation）
-**Next Action:** Provider Selection（Implementation）+ Cursor Plan v2
-**Coding:** 待开放
+**Version:** 1.7
+**Status:** Core Blocking Decisions Closed; Batch 5 Agent Loop shipped
+**Later Decisions:** L-04 / L-05 / L-06 Product Decisions Closed；Provider = Gemini（Batch 4-C）
+**Next Action:** Batch 6 hardening + Phase 1/2 regression, then UI
+**Coding:** 开放
 
 ---
 

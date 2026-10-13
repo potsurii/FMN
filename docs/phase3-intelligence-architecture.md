@@ -1767,9 +1767,11 @@ Formal Todo
 F3-05 仍然是 bounded workflow orchestration：
 
 ```text
-LLM 只能提出允许的 Intent
-Workflow Router 决定实际执行
+LLM 只能提出允许的工具提议（tool proposal）
+Agent 验证并执行；Workflow Router 决定实际执行
 ```
+
+Batch 5 已把此机制提前到所有层：F3-01 文本输入同样经 Agent Loop，不是 F3-05 专属。
 
 LLM 不拥有数据库写权限，Provider 不得绕过 Workflow。正式执行必须保持：
 
@@ -1782,6 +1784,11 @@ LLM → Structured Intent → Deterministic Workflow → Review → Explicit Con
 ---
 
 # 17. F3-05 Agent Loop
+
+> **Note (Batch 5):** 本节描述 F3-05 完整编排的形态，尚未实现。
+> Batch 5 已把「LLM 提议工具 → Agent 验证 → 循环」机制提前到 F3-01 输入层，
+> 见 `docs/phase3-agent-architecture.md` §10 与 `lib/workflows/orchestration/loop.ts`。
+> F3-05 尚未实现时，本节视为未来规划，不是已实现行为。
 
 F3-05 可以使用：
 

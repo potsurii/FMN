@@ -1,6 +1,6 @@
 # Phase 3 Current State
 
-Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C / 3 / 4-A / 4-B / 4-C. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Batch 3 I-01 / I-02 shared write infrastructure is implemented and committed (`c746c49`); Batch 3 docs sync (`5a081c0`) and input-boundary docs sync (`06b5b05`) applied; Batch 3 Runtime Review = **PASS**. Batch 4-A Receipt Draft Group and Batch 4-B receipt extraction boundary are committed in `6b005bb`. Batch 4-C adds a server-side Gemini adapter for OCR, STT, and `gemini-3.5-flash`, committed and pushed in `4a26cfb`. Brand remains BLOCKED. L-04 / L-05 / L-06 product decisions are **Closed**. Provider choice for this batch is Gemini. Live OCR, STT, and LLM API results, including LLM field accuracy, are **NOT VERIFIED**. `test:batch4c` injects fake responses and does not call Gemini. Batch 5 / F3-05 is not started.
+Factual implementation baseline after Phase 3 Batch 1 / 2A / 2B / 2C / 3 / 4-A / 4-B / 4-C / 5. L-01 Destination, L-03 「最近」, and L-02 Duplicate Detection are implemented and committed. Batch 3 I-01 / I-02 shared write infrastructure is implemented and committed (`c746c49`). Batch 4-A/B receipt flow and Batch 4-C Gemini provider integration are implemented. Batch 5 Agent Loop (B mode) is implemented, tested, and merged to `master` in `c08ee84` (merge commit). Brand remains BLOCKED. L-04 / L-05 / L-06 product decisions are Closed. Provider = Gemini. Live LLM / OCR / STT results are **VERIFIED** in manual testing. Agent Loop core paths (A1–A4, B1–B5, C1–C2, D1–D3, E1–E2) pass. Known residuals are listed in §4.
 
 This document describes **what exists in the repository now**.  
 It is not a product requirements document and not an implementation plan.
@@ -405,6 +405,35 @@ Verification: `scripts/batch4c-verify.ts` (`npm run test:batch4c`) injects fake 
 
 ---
 
+### Batch 5 — Agent Loop (B mode)
+
+**Status:** Implemented, tested, merged to `master` (`c08ee84`).
+
+Core files (new or rewritten):
+
+- `lib/workflows/orchestration/tool-registry.ts` — 7 whitelisted tools (search_own_history / organize_records / create_record_draft / create_todo_draft / list_trips / resolve_recent_trip / request_trip_pick). Write functions are not exposed.
+- `lib/workflows/orchestration/loop.ts` — LLM proposes a tool → Agent validates → executes → result returns to LLM. Max 6 steps. 4 cancellation checkpoints.
+- `lib/workflows/orchestration/agent-model-turn.ts` — server action; API key stays server-side.
+- `lib/workflows/orchestration/control.ts` — removed `ownedPhrase` regex and `startThisTripSort`; `advanceAgentTask` now routes to `runAgentLoop` for general turns, keeps `resumeWaiting` / `resumeSequence` for old-task recovery.
+- `components/companion/CompanionHost.tsx` — `agentLoopCtxRef` for `.cancelled` propagation; `handleClose` now cancels the loop.
+
+Provider layer:
+
+- `lib/providers/gemini/llm.ts` — added `requestWithTools` and `bodyWithTools`; clearer 429 / 5xx messages.
+- `lib/providers/gemini/call.ts` — added `functionCallFromGeminiResponse` (reads `functionCall` + `thoughtSignature`).
+- `tool-registry.ts` `getGeminiTools()` — strips `additionalProperties` for Gemini compatibility.
+
+Prompt layer:
+
+- `loop.ts` `SYSTEM_INSTRUCTION` — 8 lines: no DB write, no invented fields, sort-with-context direct call, generic query → `search_own_history`, `request_trip_pick` only for 「这次/这趟」 without tripId.
+
+Tests:
+
+- `scripts/batch5s1-verify.ts` — 9 sections, including generic-query list-all and question-cue filtering.
+- `scripts/batch5s3-verify.ts` — 13 sections, including `choose_trip` / `pick_trip` source routing, cancellation, provider-error.
+
+---
+
 ### Batch 2B — Step 6: F3-04 Todo Formal Path (Companion)
 
 **Status:** Implemented (Draft → Explicit Confirm → Write); Phase 2 manual form unchanged
@@ -495,6 +524,15 @@ Additional open inputs (not Later Decisions):
 | I-02 receipt temp lifecycle | **Completed** (Batch 3) + Runtime Review PASS |
 | Storage vs DB TX residual risk | Known non-blocking: orphan formal Storage object possible if post-rollback cleanup fails |
 | Multi-record Companion UI | Receipt Draft Group review exists (Batch 4-A). F3-05 orchestration is not implemented. |
+
+Batch 5 known residuals (not blocking, deferred to later phases):
+
+| Item | Description |
+| :--- | :--- |
+| B2 — `extractDestination` | `整理那霸的购物记录` returns `null` because the token "那霸" contains 「那」 and is filtered by the current `NON_PLACE` regex. Result: silent query over all records. Low frequency; deferred. |
+| `sequence.ts` old-task path | `resumeSequence` / `continueJapanSunscreenTask` still hard-code the "上次去日本买过防晒" history text. Only reachable when an old localStorage task exists; expires 7 days after creation. |
+| `recentPick` not persisted | After `choose-trip` from the loop, candidates live only in React state. Refresh loses the picker. Existing design; may be revisited. |
+| Gemini free-tier quota | 20 requests/day for the free tier. Agent loop uses 1–6 per turn. Acceptable for dev; production needs paid tier or a different provider. |
 
 ---
 
