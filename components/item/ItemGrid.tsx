@@ -1,5 +1,5 @@
 import { EmptyState } from "@/components/feedback/EmptyState";
-import { ItemCard } from "@/components/item/ItemCard";
+import { ZineItemCard } from "@/components/item/ZineItemCard";
 import type { ItemNavFrom } from "@/lib/navigation/context";
 import type { RecommendationCounts } from "@/lib/recommendations/types";
 import type { ItemWithDisplay } from "@/lib/items/types";
@@ -40,7 +40,7 @@ export function ItemGrid({
       className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${className}`}
     >
       {items.map((item) => (
-        <ItemCard
+        <ZineItemCard
           key={item.id}
           item={item}
           navFrom={itemNavFrom}
