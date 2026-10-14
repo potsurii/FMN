@@ -1,32 +1,41 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { DM_Mono, Klee_One, Noto_Serif, Shippori_Mincho } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const mincho = Shippori_Mincho({
-  subsets: ["latin"],
-  weight: ["400", "500", "700", "800"],
+const mincho = localFont({
+  src: [
+    { path: "./fonts/ShipporiMincho-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ShipporiMincho-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/ShipporiMincho-700.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/ShipporiMincho-800.woff2", weight: "800", style: "normal" },
+  ],
   variable: "--font-mincho",
   display: "swap",
 });
 
-const receipt = DM_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const receipt = localFont({
+  src: [
+    { path: "./fonts/DMMono-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/DMMono-500.woff2", weight: "500", style: "normal" },
+  ],
   variable: "--font-receipt",
   display: "swap",
 });
 
-const hand = Klee_One({
-  subsets: ["latin"],
-  weight: ["400", "600"],
+const hand = localFont({
+  src: [
+    { path: "./fonts/KleeOne-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/KleeOne-600.woff2", weight: "600", style: "normal" },
+  ],
   variable: "--font-hand",
   display: "swap",
 });
 
-const symbols = Noto_Serif({
-  subsets: ["latin", "latin-ext"],
-  weight: ["500"],
+const symbols = localFont({
+  src: [
+    { path: "./fonts/NotoSerif-500.woff2", weight: "500", style: "normal" },
+  ],
   variable: "--font-symbols",
   display: "swap",
 });
