@@ -34,7 +34,7 @@ function HeaderWithSearchParams({ className = "", email = null }: HeaderProps) {
   const searchParams = useSearchParams();
   const from = parseNavFrom(searchParams.get("from") ?? undefined);
   const isSearchActive = isSearchNavActive(pathname, from);
-  const isMyTripsActive = pathname === "/" && !isSearchActive;
+  const isMyTripsActive = pathname === "/home" && !isSearchActive;
 
   return (
     <HeaderChrome
@@ -60,7 +60,7 @@ function HeaderChrome({
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push("/");
     router.refresh();
   }
 
@@ -70,7 +70,7 @@ function HeaderChrome({
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-6 md:gap-10">
-          <Link href="/" className="flex shrink-0 flex-col gap-0.5">
+          <Link href={email ? "/home" : "/"} className="flex shrink-0 flex-col gap-0.5">
             <span className="font-stamp text-[11px] tracking-[0.28em] text-[var(--color-stamp)] uppercase">
               Travel Archive
             </span>
@@ -84,7 +84,7 @@ function HeaderChrome({
               className="flex items-center gap-4 md:gap-5"
               aria-label="一级导航"
             >
-              <NavLink href="/" active={isMyTripsActive}>
+              <NavLink href="/home" active={isMyTripsActive}>
                 我的旅行
               </NavLink>
               <NavLink href="/search" active={isSearchActive}>

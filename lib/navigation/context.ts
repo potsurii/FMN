@@ -45,7 +45,7 @@ export function resolveTripBack(from: "search" | "trip" | null): {
   if (from === "search") {
     return { href: "/search", label: "返回搜索页" };
   }
-  return { href: "/", label: "返回我的旅行" };
+  return { href: "/home", label: "返回我的旅行" };
 }
 
 export function resolveItemBack(

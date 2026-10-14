@@ -13,14 +13,14 @@ type AuthFormProps = {
 };
 
 function safeNextPath(raw: string | null): string {
-  if (!raw) return "/";
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  if (!raw || raw === "/" || raw === "/landing") return "/home";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/home";
   return raw;
 }
 
 export function AuthForm({ mode }: AuthFormProps) {
   return (
-    <Suspense fallback={<AuthFormFields mode={mode} nextPath="/" />}>
+    <Suspense fallback={<AuthFormFields mode={mode} nextPath="/home" />}>
       <AuthFormWithNext mode={mode} />
     </Suspense>
   );

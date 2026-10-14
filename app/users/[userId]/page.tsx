@@ -63,7 +63,7 @@ export default async function UserProfilePage({
   const back =
     from === "search"
       ? { href: "/search", label: "返回搜索页" }
-      : { href: "/", label: "返回我的旅行" };
+      : { href: "/home", label: "返回我的旅行" };
 
   const isSelf = user.id === userId;
 

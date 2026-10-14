@@ -12,7 +12,7 @@ export default function NotFound() {
       <Text className="mb-6 text-[var(--color-ink-muted)]">
         该旅行不存在或已被删除。
       </Text>
-      <Link href="/">
+      <Link href="/home">
         <Button>返回我的旅行</Button>
       </Link>
     </div>

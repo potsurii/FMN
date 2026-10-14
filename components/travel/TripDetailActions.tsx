@@ -29,7 +29,7 @@ export function TripDetailActions({
       const supabase = createClient();
       await deleteTrip(supabase, tripId);
       setOpen(false);
-      router.push("/");
+      router.push("/home");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除失败，请重试");

@@ -13,7 +13,7 @@ export default async function CreateTripPage() {
       <Header email={user.email} />
       <main className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10">
         <div className="mb-6">
-          <BackButton href="/" label="返回我的旅行" />
+          <BackButton href="/home" label="返回我的旅行" />
         </div>
         <section className="mb-8 max-w-2xl">
           <p className="mb-2 font-stamp text-[11px] tracking-[0.24em] text-[var(--color-stamp)] uppercase">

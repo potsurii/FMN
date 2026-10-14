@@ -12,7 +12,7 @@ export default function ItemNotFound() {
       <Text className="mb-6 text-[var(--color-ink-muted)]">
         该商品不存在，或不属于这次旅行。
       </Text>
-      <Link href="/">
+      <Link href="/home">
         <Button>返回我的旅行</Button>
       </Link>
     </div>
