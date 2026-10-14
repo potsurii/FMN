@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/foundation/Button";
 import { Textarea } from "@/components/foundation/Textarea";
+import { FmnButton } from "@/components/ui/fmn-button";
+import { FmnPaperCard } from "@/components/ui/fmn-paper-card";
+import { FmnTag } from "@/components/ui/fmn-tag";
 import { CompanionLauncher } from "@/components/companion/CompanionLauncher";
 import { CompanionSurface } from "@/components/companion/CompanionSurface";
 import { HistoryResultSection } from "@/components/companion/HistoryResultSection";
@@ -1380,81 +1382,89 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
             </>
           ) : null}
 
-          <div className="mt-auto space-y-2 border-t border-[var(--color-line)] pt-3">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="录入 / 查询 / 整理 / 代办…"
-              disabled={busy}
-              rows={3}
-            />
+          <div className="mt-auto space-y-3 border-t border-dashed border-ink/30 pt-3 font-mono">
+            <FmnPaperCard dashed className="p-3">
+              <FmnTag>TEXT</FmnTag>
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="录入 / 查询 / 整理 / 代办…"
+                disabled={busy}
+                rows={3}
+                className="mt-2 !rounded-none !border-0 !border-b !border-dashed !border-ink/50 !bg-transparent !font-mono !text-sm tracking-[0.06em]"
+              />
+            </FmnPaperCard>
             {!draft && !todoDraft && !receiptGroup ? (
-              <div className="space-y-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-3">
-                <p className="text-xs text-[var(--color-ink-muted)]">
+              <FmnPaperCard dashed className="space-y-3 p-3">
+                <FmnTag>TIDY</FmnTag>
+                <p className="font-mono text-[0.68rem] leading-relaxed tracking-wide text-ink/70">
                   授权后将发送给 Gemini：当前输入框里的文字。不发送历史记录或完整购物记录。整理结果进入待确认草稿，不会直接保存。
                 </p>
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Button
+                  <FmnButton
                     type="button"
-                    variant="secondary"
+                    variant="ticket"
                     disabled={busy || !input.trim()}
                     onClick={() => void handleStructureWithGemini()}
                   >
-                    {providerBusy ? "整理中…" : "授权并整理"}
-                  </Button>
+                    {providerBusy ? "TIDYING" : "TIDY"}
+                  </FmnButton>
                 </div>
-                <p className="text-xs text-[var(--color-ink-muted)]">
+                <FmnTag>VOICE</FmnTag>
+                <p className="font-mono text-[0.68rem] leading-relaxed tracking-wide text-ink/70">
                   授权后将发送给 Gemini：一段语音，只用于转写。原始语音不会保存。转写文字随后走现有手动发送流程。
                 </p>
+                <FmnTag>UPLOAD</FmnTag>
                 <input
                   type="file"
                   accept="audio/webm,audio/wav,audio/mp4,audio/mpeg"
                   disabled={busy}
+                  className="font-mono text-[0.68rem] tracking-[0.08em] text-ink"
                   onChange={(event) => {
                     setPendingAudio(event.target.files?.[0] ?? null);
                   }}
                 />
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Button
+                  <FmnButton
                     type="button"
-                    variant="secondary"
+                    variant="ticket"
                     disabled={busy}
                     onClick={() => void toggleRecording()}
                   >
-                    {recording ? "停止录音" : "录一段语音"}
-                  </Button>
-                  <Button
+                    {recording ? "STOP" : "RECORD"}
+                  </FmnButton>
+                  <FmnButton
                     type="button"
-                    variant="secondary"
+                    variant="ticket"
                     disabled={busy || !pendingAudio}
                     onClick={() => void handleTranscribe()}
                   >
-                    授权并转写
-                  </Button>
+                    TRANSCRIBE
+                  </FmnButton>
                 </div>
-              </div>
+              </FmnPaperCard>
             ) : null}
             <div className="flex justify-end gap-2">
               {!draft && !todoDraft && !receiptGroup ? (
-                <Button
+                <FmnButton
                   type="button"
-                  variant="secondary"
+                  variant="ticket"
                   disabled={busy}
                   onClick={startReceiptGroup}
                 >
-                  添加收据草稿
-                </Button>
+                  RECEIPT
+                </FmnButton>
               ) : null}
-              <Button
+              <FmnButton
                 type="button"
-                variant="secondary"
+                variant="ticket"
                 disabled={busy || !input.trim()}
                 onClick={handleSubmitText}
               >
-                {searching ? "处理中…" : "发送"}
-              </Button>
+                {searching ? "SENDING" : "SEND"}
+              </FmnButton>
             </div>
-            <p className="text-xs text-[var(--color-ink-muted)]">
+            <p className="font-mono text-[0.68rem] leading-relaxed tracking-wide text-ink/65">
               「发送」默认走本地规则。只有当前这句话里的目的地识别失败时，才会把这一句发给 Gemini 补全，并且只采用原句里已经写出的地名。查询与整理只读；仅明确确认后才会写入正式记录或代办。
             </p>
           </div>
