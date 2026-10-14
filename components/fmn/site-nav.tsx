@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { FmnMark } from './paper'
 
-export function SiteNav({ homeHref = '/' }: { homeHref?: string }) {
+export function SiteNav({ authed = false }: { authed?: boolean }) {
+  const homeHref = authed ? '/home' : '/'
+
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-paper/10 bg-ink/80 backdrop-blur-md">
       <nav
@@ -19,26 +21,30 @@ export function SiteNav({ homeHref = '/' }: { homeHref?: string }) {
               href={homeHref}
               className="rounded-sm px-2.5 py-2 text-paper/80 transition-colors hover:text-paper-hi sm:px-3"
             >
-              我的旅行
+              {authed ? '进入应用' : '我的旅行'}
             </Link>
           </li>
-          <li>
-            <Link
-              href="/login"
-              className="rounded-sm px-2.5 py-2 text-paper/80 transition-colors hover:text-paper-hi sm:px-3"
-            >
-              Log in
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/register"
-              className="bg-vermilion text-paper-hi hover:bg-vermilion-hi hover:text-ink ml-1 inline-block px-3.5 py-2 font-medium transition-colors"
-              style={{ clipPath: 'polygon(0 6%, 4% 0, 100% 3%, 98% 100%, 3% 96%)' }}
-            >
-              Sign up
-            </Link>
-          </li>
+          {authed ? null : (
+            <>
+              <li>
+                <Link
+                  href="/login"
+                  className="rounded-sm px-2.5 py-2 text-paper/80 transition-colors hover:text-paper-hi sm:px-3"
+                >
+                  Log in
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/register"
+                  className="bg-vermilion text-paper-hi hover:bg-vermilion-hi hover:text-ink ml-1 inline-block px-3.5 py-2 font-medium transition-colors"
+                  style={{ clipPath: 'polygon(0 6%, 4% 0, 100% 3%, 98% 100%, 3% 96%)' }}
+                >
+                  Sign up
+                </Link>
+              </li>
+            </>
+          )}
         </ul>
       </nav>
     </header>

@@ -52,7 +52,7 @@ const VISIBILITY_OPTIONS = [
 
 export function TripForm({ mode, trip, userId }: TripFormProps) {
   const router = useRouter();
-  const cancelHref = mode === "edit" && trip ? `/trips/${trip.id}` : "/";
+  const cancelHref = mode === "edit" && trip ? `/trips/${trip.id}` : "/home";
   const successBase = mode === "edit" && trip ? `/trips/${trip.id}` : null;
 
   const [name, setName] = useState(trip?.name ?? "");

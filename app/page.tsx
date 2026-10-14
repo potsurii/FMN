@@ -11,20 +11,20 @@ import { Todo } from "@/components/fmn/todo";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function LandingPage() {
-  let homeHref = "/";
+  let authed = false;
   try {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (user) homeHref = "/home";
+    authed = Boolean(user);
   } catch {
-    homeHref = "/";
+    authed = false;
   }
 
   return (
     <div className="fmn-landing">
-      <SiteNav homeHref={homeHref} />
+      <SiteNav authed={authed} />
       <main>
         <Hero />
         <PageTurn
