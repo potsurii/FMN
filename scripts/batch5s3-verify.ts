@@ -6,8 +6,21 @@
 
 import assert from "node:assert/strict";
 import { functionCallFromGeminiResponse } from "../lib/providers/gemini/call";
+import { requestWithTools } from "../lib/providers/gemini/llm";
 import type { ProviderResult } from "../lib/providers/gemini/types";
+import { advanceAgentTask } from "../lib/workflows/orchestration/control";
 import { runAgentLoop, type AgentContext, type AgentLoopRequest } from "../lib/workflows/orchestration/loop";
+import {
+  AGENT_MAX_CONTENTS,
+  AGENT_MAX_TEXT_CHARS,
+  AGENT_SYSTEM_INSTRUCTION,
+  prepareAgentModelTurn,
+} from "../lib/workflows/orchestration/agent-turn-policy";
+import {
+  AGENT_TURN_LOG_PREFIX,
+  agentTurnDiag,
+  logAgentTurnDiag,
+} from "../lib/workflows/orchestration/agent-turn-diag";
 import { getGeminiTools, TOOL_REGISTRY } from "../lib/workflows/orchestration/tool-registry";
 
 const TOOL_NAMES = [
@@ -171,6 +184,8 @@ async function main() {
     assert.equal(result.kind, "provider-error");
     if (result.kind === "provider-error") {
       assert.equal(result.error, "Gemini 没有返回可用结果。请稍后重试。");
+      assert.equal(result.toolAttempted, false);
+      assert.equal(result.draft, null);
     }
   }
 
@@ -316,6 +331,275 @@ async function main() {
       assert.equal(result.text, "没有需要执行的工具。");
       assert.equal(result.draft, null);
     }
+  }
+
+  section("provider failure before any tool falls back locally");
+  {
+    const step = await advanceAgentTask({
+      text: "记一条铅笔 30 泰铢",
+      entry: "global",
+      currentTripId: null,
+      task: null,
+      requestWithTools: async () => ({
+        ok: false,
+        code: "provider",
+        error: "Gemini 没有返回可用结果。请稍后重试。",
+      }),
+    });
+    assert.equal(step.kind, "local-fallback");
+  }
+
+  section("a tool that already ran blocks local fallback");
+  {
+    let calls = 0;
+    const step = await advanceAgentTask({
+      text: "记一条铅笔",
+      entry: "global",
+      currentTripId: null,
+      task: null,
+      requestWithTools: async () => {
+        calls += 1;
+        if (calls === 1) {
+          return okTurn({
+            text: null,
+            functionCall: { name: "create_record_draft", args: { product_name: "铅笔" } },
+          });
+        }
+        return {
+          ok: false as const,
+          code: "provider" as const,
+          error: "Gemini 没有返回可用结果。请稍后重试。",
+        };
+      },
+    });
+    assert.equal(calls, 2);
+    assert.equal(step.kind, "loop-tool-draft");
+    if (step.kind === "loop-tool-draft") {
+      assert.equal(step.draft.draftType, "shopping_record");
+      assert.equal(step.text, "Gemini 没有返回可用结果。请稍后重试。");
+    }
+  }
+
+  section("a thrown tool counts as attempted and does not fall back");
+  {
+    const tool = TOOL_REGISTRY.find((item) => item.name === "create_record_draft");
+    assert.ok(tool);
+    const original = tool.handler;
+    tool.handler = async () => {
+      throw new Error("handler blew up");
+    };
+    try {
+      const step = await advanceAgentTask({
+        text: "记一条铅笔",
+        entry: "global",
+        currentTripId: null,
+        task: null,
+        requestWithTools: async () =>
+          okTurn({
+            text: null,
+            functionCall: { name: "create_record_draft", args: { product_name: "铅笔" } },
+          }),
+      });
+      assert.equal(step.kind, "loop-text");
+      if (step.kind === "loop-text") assert.equal(step.text, "工具执行失败。");
+    } finally {
+      tool.handler = original;
+    }
+  }
+
+  section("server turn policy ignores client tools and requires a session");
+  {
+    const contents = [{ role: "user" as const, parts: [{ text: "记一条" }] }];
+    const denied = prepareAgentModelTurn(false, contents);
+    assert.equal(denied.ok, false);
+    if (!denied.ok) assert.equal(denied.failure.code, "unauthorized");
+
+    const prepared = prepareAgentModelTurn(true, contents);
+    assert.equal(prepared.ok, true);
+    if (prepared.ok) {
+      assert.equal(prepared.body.systemInstruction.parts[0].text, AGENT_SYSTEM_INSTRUCTION);
+      assert.deepEqual(prepared.tools, getGeminiTools());
+      assert.deepEqual(prepared.body.contents, contents);
+    }
+
+    const tooMany = Array.from({ length: AGENT_MAX_CONTENTS + 1 }, () => ({
+      role: "user" as const,
+      parts: [{ text: "记一条" }],
+    }));
+    const overCount = prepareAgentModelTurn(true, tooMany);
+    assert.equal(overCount.ok, false);
+    if (!overCount.ok) assert.equal(overCount.failure.code, "invalid");
+
+    const overText = prepareAgentModelTurn(true, [
+      { role: "user", parts: [{ text: "x".repeat(AGENT_MAX_TEXT_CHARS + 1) }] },
+    ]);
+    assert.equal(overText.ok, false);
+
+    const bulky = prepareAgentModelTurn(true, [
+      {
+        role: "user",
+        parts: [
+          {
+            functionResponse: {
+              name: "search_own_history",
+              response: { blob: "y".repeat(100_000) },
+            },
+          },
+        ],
+      },
+    ]);
+    assert.equal(bulky.ok, false);
+    if (!bulky.ok) assert.equal(bulky.failure.error, "模型对话体积超出上限。");
+  }
+
+  console.log("\n-- agent turn diagnostic log --");
+  {
+    const sentence = "我昨天买了一条围巾";
+    const secret = "sk-test-secret-key";
+    const allowed = new Set([
+      "requestId",
+      "stage",
+      "code",
+      "status",
+      "responseIsJson",
+      "errorStatus",
+      "errorCode",
+    ]);
+    const cases = [
+      agentTurnDiag({ requestId: "req-1", stage: "session", code: "unauthorized" }),
+      agentTurnDiag({ requestId: "req-2", stage: "validate", code: "invalid" }),
+      agentTurnDiag({ requestId: "req-3", stage: "config", code: "not_configured" }),
+      agentTurnDiag({ requestId: "req-4", stage: "http", code: "provider", status: 429 }),
+      agentTurnDiag({ requestId: "req-5", stage: "response", code: "empty", status: 200 }),
+      agentTurnDiag({ requestId: "req-6", stage: "transport", code: "timeout" }),
+      agentTurnDiag({ requestId: "req-7", stage: "transport", code: "network", status: 1.5 }),
+    ];
+
+    const withJsonError = agentTurnDiag({
+      requestId: "req-http-json",
+      stage: "http",
+      code: "provider",
+      status: 503,
+      responseIsJson: true,
+      errorStatus: "UNAVAILABLE",
+      errorCode: 503,
+    });
+    assert.equal(withJsonError.responseIsJson, true);
+    assert.equal(withJsonError.errorStatus, "UNAVAILABLE");
+    assert.equal(withJsonError.errorCode, 503);
+
+    const withNonJson = agentTurnDiag({
+      requestId: "req-http-nonjson",
+      stage: "http",
+      code: "provider",
+      status: 503,
+      responseIsJson: false,
+      errorStatus: null,
+      errorCode: null,
+    });
+    assert.equal(withNonJson.responseIsJson, false);
+    assert.equal(withNonJson.errorStatus, null);
+
+    for (const line of cases) {
+      for (const key of Object.keys(line)) assert.equal(allowed.has(key), true);
+      const serialized = JSON.stringify(line);
+      assert.equal(serialized.includes(sentence), false);
+      assert.equal(serialized.includes(secret), false);
+      assert.equal("error" in line, false);
+    }
+    assert.equal(cases[3]?.status, 429);
+    assert.equal(cases[6]?.status, undefined);
+
+    const logged: unknown[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      logged.push(args);
+    };
+    try {
+      logAgentTurnDiag({
+        requestId: "req-log",
+        stage: "session",
+        code: "unauthorized",
+      });
+      const fake = async (status: number, json: unknown) => ({ status, json });
+      const body = { contents: [{ role: "user", parts: [{ text: sentence }] }] };
+      const base = { apiKey: secret, body, tools: [], diagRequestId: "req-http" };
+      await requestWithTools({ ...base, call: async () => fake(429, {}) });
+      await requestWithTools({ ...base, call: async () => fake(500, {}) });
+      await requestWithTools({ ...base, call: async () => fake(404, {}) });
+      await requestWithTools({
+        ...base,
+        call: async () => fake(503, { error: { status: "UNAVAILABLE", code: 503 } }),
+      });
+      await requestWithTools({
+        ...base,
+        call: async () => fake(503, null),
+      });
+      await requestWithTools({ ...base, call: async () => fake(200, {}) });
+      await requestWithTools({
+        ...base,
+        call: async () => {
+          const err = new Error("timed out with key " + secret);
+          err.name = "TimeoutError";
+          throw err;
+        },
+      });
+      await requestWithTools({
+        ...base,
+        call: async () => {
+          throw new Error("network down " + sentence);
+        },
+      });
+      await requestWithTools({
+        ...base,
+        call: async () =>
+          fake(200, {
+            candidates: [{ content: { parts: [{ text: "ok" }] } }],
+          }),
+      });
+      await requestWithTools({
+        apiKey: secret,
+        body,
+        tools: [],
+        call: async () => fake(500, {}),
+      });
+    } finally {
+      console.error = original;
+    }
+    const lines = logged.filter(
+      (entry) => Array.isArray(entry) && entry[0] === AGENT_TURN_LOG_PREFIX,
+    );
+    assert.equal(lines.length, 9);
+    const stages = lines.map((entry) => (entry as unknown[])[1] as { stage: string; code: string; status?: number });
+    assert.deepEqual(
+      stages.map((line) => [line.stage, line.code, line.status ?? null]),
+      [
+        ["session", "unauthorized", null],
+        ["http", "provider", 429],
+        ["http", "provider", 500],
+        ["http", "provider", 404],
+        ["http", "provider", 503],
+        ["http", "provider", 503],
+        ["response", "empty", 200],
+        ["transport", "timeout", null],
+        ["transport", "network", null],
+      ],
+    );
+    const http503Lines = lines
+      .map((entry) => (entry as unknown[])[1] as Record<string, unknown>)
+      .filter((line) => line.stage === "http" && line.status === 503);
+    const json503 = http503Lines.find((line) => line.responseIsJson === true);
+    const html503 = http503Lines.find((line) => line.responseIsJson === false);
+    assert.equal(json503?.errorStatus, "UNAVAILABLE");
+    assert.equal(json503?.errorCode, 503);
+    assert.equal(html503?.errorStatus, null);
+    assert.equal(html503?.errorCode, null);
+
+    const blob = JSON.stringify(lines);
+    assert.equal(blob.includes(sentence), false);
+    assert.equal(blob.includes(secret), false);
+    assert.equal(blob.includes("timed out"), false);
+    assert.equal(blob.includes("network down"), false);
   }
 
   console.log("\nbatch5s3 ok");

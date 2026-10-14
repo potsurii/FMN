@@ -82,6 +82,7 @@ export type AgentStep =
       text: string;
     }
   | { kind: "loop-text"; text: string; task: TaskState }
+  | { kind: "local-fallback" }
   | {
       kind: "loop-tool-draft";
       draft: ShoppingRecordDraft | ShoppingTodoDraft;
@@ -254,7 +255,18 @@ function stepFromLoop(
       source: result.source,
     };
   }
+  if (result.kind === "provider-error" && !result.toolAttempted) {
+    return { kind: "local-fallback" };
+  }
   if (result.kind === "provider-error" || result.kind === "tool-error") {
+    if (result.draft) {
+      return {
+        kind: "loop-tool-draft",
+        draft: result.draft,
+        text: result.error,
+        task: taskWithDraft(task, result.draft),
+      };
+    }
     return { kind: "loop-text", text: result.error, task };
   }
   if (result.draft) {

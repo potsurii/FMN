@@ -996,6 +996,10 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
       ctx,
     });
     if (agentEpochRef.current !== epoch) return true;
+    if (step.kind === "local-fallback") {
+      appendMessage("assistant", "模型暂不可用，已改用本地规则。");
+      return false;
+    }
     if (step.kind === "passthrough") return false;
     if (step.kind === "stopped") return true;
 
@@ -1465,7 +1469,7 @@ export function CompanionHost({ context, trips }: CompanionHostProps) {
               </FmnButton>
             </div>
             <p className="font-mono text-[0.68rem] leading-relaxed tracking-wide text-ink/65">
-              「发送」默认走本地规则。只有当前这句话里的目的地识别失败时，才会把这一句发给 Gemini 补全，并且只采用原句里已经写出的地名。查询与整理只读；仅明确确认后才会写入正式记录或代办。
+              「发送」优先交给 Gemini 理解并提议工具。只有模型在本轮尚未执行任何工具时失败，才会改用本地规则。历史查询与整理的结果可能随工具回传给模型。查询与整理只读；仅明确确认后才会写入正式记录或代办。
             </p>
           </div>
         </div>

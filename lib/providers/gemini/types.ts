@@ -9,13 +9,17 @@ export type ProviderFailureCode =
   | "unsupported"
   | "provider";
 
-export type ProviderResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; code: ProviderFailureCode; error: string };
+export type ProviderFailure = {
+  ok: false;
+  code: ProviderFailureCode;
+  error: string;
+};
+
+export type ProviderResult<T> = { ok: true; value: T } | ProviderFailure;
 
 export function providerFailure(
   code: ProviderFailureCode,
   error: string,
-): ProviderResult<never> {
+): ProviderFailure {
   return { ok: false, code, error };
 }

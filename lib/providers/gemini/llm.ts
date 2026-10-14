@@ -8,6 +8,7 @@ import {
 } from "./call";
 import { GEMINI_TIMEOUT_MS, geminiGenerateUrl } from "./config";
 import { providerFailure, type ProviderResult } from "./types";
+import { logAgentTurnDiag } from "@/lib/workflows/orchestration/agent-turn-diag";
 
 const VAGUE = new Set(["好的", "嗯", "继续", "看起来不错", "ok", "okay"]);
 
@@ -129,6 +130,7 @@ export async function requestWithTools(input: {
   tools: unknown;
   call?: GeminiCall;
   timeoutMs?: number;
+  diagRequestId?: string;
 }): Promise<
   ProviderResult<{
     text: string | null;
@@ -136,6 +138,49 @@ export async function requestWithTools(input: {
   }>
 > {
   const call = input.call ?? defaultGeminiCall;
+  const note = (
+    stage: "http" | "response" | "transport",
+    code: "provider" | "empty" | "timeout" | "network",
+    status?: number,
+    extra?: {
+      responseIsJson?: boolean;
+      errorStatus?: string | null;
+      errorCode?: number | null;
+    },
+  ) => {
+    if (!input.diagRequestId) return;
+    logAgentTurnDiag({
+      requestId: input.diagRequestId,
+      stage,
+      code,
+      status,
+      ...extra,
+    });
+  };
+  
+  const readErrorShape = (
+    json: unknown,
+  ): {
+    responseIsJson: boolean;
+    errorStatus: string | null;
+    errorCode: number | null;
+  } => {
+    if (json === null || typeof json !== "object" || Array.isArray(json)) {
+      return { responseIsJson: false, errorStatus: null, errorCode: null };
+    }
+    const record = json as Record<string, unknown>;
+    const error = record.error;
+    if (!error || typeof error !== "object" || Array.isArray(error)) {
+      return { responseIsJson: true, errorStatus: null, errorCode: null };
+    }
+    const err = error as Record<string, unknown>;
+    return {
+      responseIsJson: true,
+      errorStatus: typeof err.status === "string" ? err.status : null,
+      errorCode: typeof err.code === "number" ? err.code : null,
+    };
+  };
+
   try {
     const response = await call({
       url: geminiGenerateUrl(),
@@ -143,26 +188,35 @@ export async function requestWithTools(input: {
       body: bodyWithTools(input.body, input.tools),
       timeoutMs: input.timeoutMs ?? GEMINI_TIMEOUT_MS,
     });
-    if (response.status === 429) {
-      return providerFailure("provider", "AI 今日调用已达上限，明天会恢复。可以手动输入。");
-    }
-    if (response.status >= 500) { 
-      return providerFailure("provider", "AI服务暂不可用,请稍后重试。");
-    }
-    if (response.status < 200 || response.status >= 300) {
+    if (
+      response.status === 429 ||
+      response.status >= 500 ||
+      response.status < 200 ||
+      response.status >= 300
+    ) {
+      note("http", "provider", response.status, readErrorShape(response.json));
+      if (response.status === 429) {
+        return providerFailure("provider", "AI 今日调用已达上限，明天会恢复。可以手动输入。");
+      }
+      if (response.status >= 500) {
+        return providerFailure("provider", "AI服务暂不可用,请稍后重试。");
+      }
       return providerFailure("provider", "Gemini 没有返回可用结果。请稍后重试。");
     }
     const text = textFromGeminiResponse(response.json);
     const functionCall = functionCallFromGeminiResponse(response.json);
     if (!text && !functionCall) {
+      note("response", "empty", response.status);
       return providerFailure("empty", "Gemini 返回了空结果。");
     }
     return { ok: true, value: { text, functionCall } };
   } catch (err) {
     const name = err instanceof Error ? err.name : "";
     if (name === "TimeoutError" || name === "AbortError") {
+      note("transport", "timeout");
       return providerFailure("timeout", "Gemini 请求超时。可以改用手动输入。");
     }
+    note("transport", "network");
     return providerFailure("network", "无法连接 Gemini。可以改用手动输入。");
   }
 }

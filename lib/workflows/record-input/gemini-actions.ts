@@ -11,6 +11,7 @@ import { transcribeAudio } from "@/lib/providers/gemini/stt";
 import type { ProviderResult } from "@/lib/providers/gemini/types";
 import { RECEIPT_TEMP_BUCKET } from "@/lib/storage/receipt-buckets";
 import { assertOwnedReceiptPath } from "@/lib/storage/receipt-lifecycle";
+import { readSessionUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import type { ReceiptLineExtraction } from "@/lib/workflows/record-input/receipt-draft-group";
 
@@ -19,13 +20,9 @@ const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const MAX_TEXT_CHARS = 2000;
 
 async function requireUserId(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) return { ok: false, error: "请先登录" };
-  return { ok: true, userId: user.id };
+  const session = await readSessionUser();
+  if (!session.ok) return { ok: false, error: session.error };
+  return { ok: true, userId: session.user.id };
 }
 
 function requireKey(): ProviderResult<string> {
