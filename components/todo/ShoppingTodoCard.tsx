@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
-import { Button } from "@/components/foundation/Button";
-import { Text } from "@/components/foundation/Text";
-import { CategoryTag } from "@/components/item/CategoryTag";
+import { Tape } from "@/components/fmn/paper";
 import { ItemImage } from "@/components/item/ItemImage";
-import { Price } from "@/components/item/Price";
+import { FmnButton } from "@/components/ui/fmn-button";
+import { FmnPaperCard } from "@/components/ui/fmn-paper-card";
+import { FmnTag } from "@/components/ui/fmn-tag";
+import { getCategoryLabel } from "@/lib/category";
+import { formatMoney } from "@/lib/currency";
 import { createClient } from "@/lib/supabase/client";
 import { deleteTodo } from "@/lib/todos/mutations";
 import type { ShoppingTodoWithDisplay } from "@/lib/todos/types";
@@ -39,67 +41,62 @@ export function ShoppingTodoCard({ todo, tripId }: ShoppingTodoCardProps) {
   }
 
   return (
-    <article className="overflow-hidden rounded-[var(--radius-card)] border border-dashed border-[var(--color-line)] bg-[var(--color-paper)] shadow-[0_1px_0_rgba(45,42,38,0.03)]">
+    <FmnPaperCard dashed className="overflow-hidden">
       <div className="flex gap-3 p-3 md:p-4">
-        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[var(--radius-sm)] bg-[var(--color-paper-muted)] md:h-24 md:w-24">
+        <figure className="paper-hi shadow-paper relative h-24 w-20 shrink-0 p-1.5 pb-2 md:h-28 md:w-24">
+          <Tape className="-top-2 left-1/2 w-10 -translate-x-1/2 -rotate-2" />
           <ItemImage
             src={todo.imageUrl}
             alt={`${todo.name} todo image`}
             className="h-full w-full object-cover"
           />
-        </div>
+        </figure>
         <div className="min-w-0 flex-1 space-y-1.5">
-          <p className="font-stamp text-[10px] tracking-[0.18em] text-[var(--color-stamp)] uppercase">
-            待购买
-          </p>
+          <FmnTag>待购买</FmnTag>
           <h3
-            className="truncate text-base font-semibold text-[var(--color-ink)]"
+            className="font-display truncate text-lg leading-tight font-bold text-ink"
             title={todo.name}
           >
             {todo.name}
           </h3>
-          {todo.category ? <CategoryTag slug={todo.category} /> : null}
+          {todo.category ? <FmnTag>{getCategoryLabel(todo.category)}</FmnTag> : null}
           {todo.referencePrice !== null && todo.referenceCurrency ? (
-            <Text as="span" className="block text-sm text-[var(--color-ink-muted)]">
+            <p className="font-mono text-[0.72rem] text-ink/75">
               参考{" "}
-              <Price
-                amount={todo.referencePrice}
-                currency={todo.referenceCurrency}
-                className="text-sm"
-              />
-            </Text>
+              {formatMoney(todo.referencePrice, todo.referenceCurrency)}
+              <span className="ml-1 tracking-[0.12em] uppercase">
+                {todo.referenceCurrency}
+              </span>
+            </p>
           ) : null}
           {todo.referenceLocation ? (
-            <Text as="span" className="block text-sm text-[var(--color-ink-muted)]">
+            <p className="font-mono text-[0.72rem] text-ink/70">
               参考地点：{todo.referenceLocation}
-            </Text>
+            </p>
           ) : null}
           {todo.note ? (
-            <Text as="span" className="block text-sm text-[var(--color-ink-muted)]">
-              {todo.note}
-            </Text>
+            <p className="font-mono text-[0.72rem] text-ink/60">{todo.note}</p>
           ) : null}
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-t border-[var(--color-line)] px-3 py-3 md:px-4">
+      <div className="flex flex-wrap gap-2 border-t border-dashed border-ink/30 px-3 py-3 md:px-4">
         <Link href={`/trips/${tripId}/todos/${todo.id}/purchase`}>
-          <Button>已购买</Button>
+          <FmnButton variant="stamp">已购买</FmnButton>
         </Link>
         <Link href={`/trips/${tripId}/todos/${todo.id}/edit`}>
-          <Button variant="secondary">编辑</Button>
+          <FmnButton variant="ticket">编辑</FmnButton>
         </Link>
-        <Button
+        <FmnButton
           type="button"
-          variant="ghost"
-          className="text-[var(--color-stamp)]"
+          variant="ticket"
           onClick={() => {
             setError(null);
             setOpen(true);
           }}
         >
           删除
-        </Button>
+        </FmnButton>
       </div>
       {error ? <p className="px-3 pb-3 text-sm text-red-600">{error}</p> : null}
 
@@ -115,6 +112,6 @@ export function ShoppingTodoCard({ todo, tripId }: ShoppingTodoCardProps) {
         }}
         onConfirm={handleConfirmDelete}
       />
-    </article>
+    </FmnPaperCard>
   );
 }
