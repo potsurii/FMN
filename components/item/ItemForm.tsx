@@ -2,14 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@/components/foundation/Button";
-import { Input } from "@/components/foundation/Input";
-import { Textarea } from "@/components/foundation/Textarea";
-import { CurrencyInput } from "@/components/form/CurrencyInput";
-import { DatePicker } from "@/components/form/DatePicker";
-import { FormField } from "@/components/form/FormField";
 import { ImageUploader } from "@/components/form/ImageUploader";
-import { Select } from "@/components/form/Select";
+import {
+  TicketCurrencyInput,
+  TicketDatePicker,
+  TicketField,
+  TicketInput,
+  TicketSelect,
+  TicketTextarea,
+} from "@/components/item/ticket-controls";
+import { FmnButton } from "@/components/ui/fmn-button";
+import { FmnPaperCard } from "@/components/ui/fmn-paper-card";
 import { CATEGORY_OPTIONS, isCategorySlug } from "@/lib/category";
 import { createItem, updateItem } from "@/lib/items/mutations";
 import type { ItemWithDisplay, Visibility } from "@/lib/items/types";
@@ -208,30 +211,31 @@ export function ItemForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto max-w-xl space-y-5">
+    <FmnPaperCard className="mx-auto max-w-xl p-5 sm:p-6">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {isFromTodo ? (
-        <p className="rounded-[var(--radius-paper)] border border-dashed border-[var(--color-line)] bg-[var(--color-paper-muted)] px-4 py-3 text-sm text-[var(--color-ink-muted)]">
+        <p className="border border-dashed border-ink/40 px-4 py-3 font-mono text-[0.75rem] tracking-wide text-ink/70">
           已从购物代办预填信息。请确认并补充实际购买价格、地点与日期。
         </p>
       ) : null}
 
-      <FormField label="商品名称" htmlFor="item-name" required error={errors.name}>
-        <Input
+      <TicketField label="商品名称" htmlFor="item-name" required error={errors.name}>
+        <TicketInput
           id="item-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           hasError={Boolean(errors.name)}
           disabled={saving}
         />
-      </FormField>
+      </TicketField>
 
-      <FormField
+      <TicketField
         label={isFromTodo ? "实际价格与货币" : "价格与货币"}
         htmlFor="item-amount"
         required
         error={errors.amount || errors.currency}
       >
-        <CurrencyInput
+        <TicketCurrencyInput
           amountId="item-amount"
           amount={amount}
           currency={currency}
@@ -240,16 +244,16 @@ export function ItemForm({
           hasError={Boolean(errors.amount || errors.currency)}
           disabled={saving}
         />
-      </FormField>
+      </TicketField>
 
-      <FormField
+      <TicketField
         label={isFromTodo ? "实际购买地点" : "购买地点"}
         htmlFor="item-location"
         required
         error={errors.location}
         hint="实际购买地点。手动输入地点文本，不使用地图"
       >
-        <Input
+        <TicketInput
           id="item-location"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
@@ -257,16 +261,16 @@ export function ItemForm({
           disabled={saving}
           placeholder="例如：Siam Paragon"
         />
-      </FormField>
+      </TicketField>
 
-      <FormField
+      <TicketField
         label="购买日期"
         htmlFor="item-date"
         required
         error={errors.purchaseDate}
         hint={`须在旅行期间内：${tripStartDate} 至 ${tripEndDate}`}
       >
-        <DatePicker
+        <TicketDatePicker
           id="item-date"
           value={purchaseDate}
           min={tripStartDate}
@@ -275,15 +279,15 @@ export function ItemForm({
           hasError={Boolean(errors.purchaseDate)}
           disabled={saving}
         />
-      </FormField>
+      </TicketField>
 
-      <FormField
+      <TicketField
         label="数量"
         htmlFor="item-quantity"
         error={errors.quantity}
         hint="商品数量，默认 1。与购物记录条数不是同一概念。"
       >
-        <Input
+        <TicketInput
           id="item-quantity"
           type="number"
           min={1}
@@ -293,15 +297,15 @@ export function ItemForm({
           hasError={Boolean(errors.quantity)}
           disabled={saving}
         />
-      </FormField>
+      </TicketField>
 
-      <FormField
+      <TicketField
         label="商品分类"
         htmlFor="item-category"
         required
         error={errors.category}
       >
-        <Select
+        <TicketSelect
           id="item-category"
           options={CATEGORY_OPTIONS}
           value={category}
@@ -309,9 +313,9 @@ export function ItemForm({
           hasError={Boolean(errors.category)}
           disabled={saving}
         />
-      </FormField>
+      </TicketField>
 
-      <FormField
+      <TicketField
         label="公开 / 私密"
         htmlFor="item-visibility"
         required
@@ -324,7 +328,7 @@ export function ItemForm({
               : undefined
         }
       >
-        <Select
+        <TicketSelect
           id="item-visibility"
           options={
             tripIsPrivate
@@ -336,9 +340,9 @@ export function ItemForm({
           hasError={Boolean(errors.visibility)}
           disabled={saving || tripIsPrivate}
         />
-      </FormField>
+      </TicketField>
 
-      <FormField
+      <TicketField
         label={isFromTodo ? "实际商品图片" : "商品图片"}
         hint="可选，最多 1 张"
       >
@@ -358,41 +362,42 @@ export function ItemForm({
           }}
           disabled={saving}
         />
-      </FormField>
+      </TicketField>
 
-      <FormField label="备注" htmlFor="item-note">
-        <Textarea
+      <TicketField label="备注" htmlFor="item-note">
+        <TicketTextarea
           id="item-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           disabled={saving}
           placeholder="可选"
         />
-      </FormField>
+      </TicketField>
 
       {submitError ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="border border-dashed border-red-600/50 px-3 py-2 font-mono text-[0.75rem] tracking-wide text-red-700">
           {submitError}
         </p>
       ) : null}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button
+        <FmnButton
           type="button"
-          variant="secondary"
+          variant="ticket"
           disabled={saving}
           onClick={() => router.push(cancelHref)}
         >
           取消
-        </Button>
-        <Button type="submit" disabled={saving}>
+        </FmnButton>
+        <FmnButton type="submit" variant="stamp" disabled={saving}>
           {saving
             ? "保存中…"
             : isFromTodo
               ? "确认已购买"
               : "保存"}
-        </Button>
+        </FmnButton>
       </div>
     </form>
+    </FmnPaperCard>
   );
 }

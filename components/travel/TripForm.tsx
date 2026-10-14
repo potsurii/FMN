@@ -3,12 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
-import { Button } from "@/components/foundation/Button";
-import { Input } from "@/components/foundation/Input";
-import { DatePicker } from "@/components/form/DatePicker";
-import { FormField } from "@/components/form/FormField";
 import { ImageUploader } from "@/components/form/ImageUploader";
-import { Select } from "@/components/form/Select";
+import {
+  TicketDatePicker,
+  TicketField,
+  TicketInput,
+  TicketSelect,
+} from "@/components/travel/ticket-controls";
+import { FmnButton } from "@/components/ui/fmn-button";
+import { FmnPaperCard } from "@/components/ui/fmn-paper-card";
 import { createClient } from "@/lib/supabase/client";
 import { fetchItemsByTripId } from "@/lib/items/queries";
 import { createTrip, updateTrip } from "@/lib/trips/mutations";
@@ -188,14 +191,15 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="mx-auto max-w-xl space-y-5">
-        <FormField
+      <FmnPaperCard className="mx-auto max-w-xl p-5 sm:p-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <TicketField
           label="旅行名称"
           htmlFor="trip-name"
           required
           error={errors.name}
         >
-          <Input
+          <TicketInput
             id="trip-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -203,9 +207,9 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
             placeholder="例如：Bangkok Shopping Trip"
             disabled={saving}
           />
-        </FormField>
+        </TicketField>
 
-        <FormField
+        <TicketField
           label="目的地"
           htmlFor="trip-destination"
           required={mode === "create"}
@@ -216,7 +220,7 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
           }
           error={errors.destination}
         >
-          <Input
+          <TicketInput
             id="trip-destination"
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
@@ -225,61 +229,61 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
             autoComplete="off"
             disabled={saving}
           />
-        </FormField>
+        </TicketField>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField
+          <TicketField
             label="开始日期"
             htmlFor="trip-start"
             required
             error={errors.startDate}
           >
-            <DatePicker
+            <TicketDatePicker
               id="trip-start"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               hasError={Boolean(errors.startDate)}
               disabled={saving}
             />
-          </FormField>
-          <FormField
+          </TicketField>
+          <TicketField
             label="结束日期"
             htmlFor="trip-end"
             required
             error={errors.endDate}
           >
-            <DatePicker
+            <TicketDatePicker
               id="trip-end"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               hasError={Boolean(errors.endDate)}
               disabled={saving}
             />
-          </FormField>
+          </TicketField>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField label="公开 / 私密" htmlFor="trip-visibility" required>
-            <Select
+          <TicketField label="公开 / 私密" htmlFor="trip-visibility" required>
+            <TicketSelect
               id="trip-visibility"
               value={visibility}
               onChange={(e) => setVisibility(e.target.value as Visibility)}
               options={VISIBILITY_OPTIONS}
               disabled={saving}
             />
-          </FormField>
-          <FormField label="旅行状态" htmlFor="trip-status" required>
-            <Select
+          </TicketField>
+          <TicketField label="旅行状态" htmlFor="trip-status" required>
+            <TicketSelect
               id="trip-status"
               value={travelStatus}
               onChange={(e) => setTravelStatus(e.target.value as TravelStatus)}
               options={TRAVEL_STATUS_OPTIONS}
               disabled={saving}
             />
-          </FormField>
+          </TicketField>
         </div>
 
-        <FormField label="旅行主图" hint="可选，最多 1 张" error={errors.image}>
+        <TicketField label="旅行主图" hint="可选，最多 1 张" error={errors.image}>
           <ImageUploader
             variant="TripCoverImage"
             value={imageFile}
@@ -294,28 +298,29 @@ export function TripForm({ mode, trip, userId }: TripFormProps) {
             }}
             disabled={saving}
           />
-        </FormField>
+        </TicketField>
 
         {submitError ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="border border-dashed border-red-600/50 px-3 py-2 font-mono text-[0.75rem] tracking-wide text-red-700">
             {submitError}
           </p>
         ) : null}
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <Button
+          <FmnButton
             type="button"
-            variant="secondary"
+            variant="ticket"
             disabled={saving}
             onClick={() => router.push(cancelHref)}
           >
             取消
-          </Button>
-          <Button type="submit" disabled={saving}>
+          </FmnButton>
+          <FmnButton type="submit" variant="stamp" disabled={saving}>
             {saving ? "保存中…" : "保存"}
-          </Button>
+          </FmnButton>
         </div>
       </form>
+      </FmnPaperCard>
 
       <ConfirmDialog
         open={confirmOpen}
