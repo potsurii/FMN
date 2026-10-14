@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { Input } from "@/components/foundation/Input";
+import { FmnInput } from "@/components/ui/fmn-input";
 
 type SearchInputProps = {
   initialQuery?: string;
@@ -41,26 +41,26 @@ export function SearchInput({
       role="search"
     >
       <span
-        className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[var(--color-ink-muted)]"
+        className="pointer-events-none absolute top-1/2 left-0 -translate-y-1/2 text-paper/70"
         aria-hidden
       >
         <SearchIcon />
       </span>
-      <Input
+      <FmnInput
         type="search"
         name="q"
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder={placeholder}
         autoComplete="off"
-        className="pr-20 pl-10"
+        className="border-paper/55 pr-16 pl-7 text-paper-hi placeholder:text-paper/45 focus:border-paper-hi focus:bg-paper/10"
         aria-label="搜索"
       />
       {value ? (
         <button
           type="button"
           onClick={handleClear}
-          className="absolute top-1/2 right-3 -translate-y-1/2 text-sm text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
+          className="absolute top-1/2 right-0 -translate-y-1/2 font-mono text-[0.72rem] text-paper/70 hover:text-paper-hi"
         >
           清除
         </button>

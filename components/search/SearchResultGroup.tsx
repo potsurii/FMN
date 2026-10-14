@@ -28,11 +28,13 @@ export function SearchResultGroup({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           {stamp ? (
-            <p className="mb-1 font-stamp text-[11px] tracking-[0.22em] text-[var(--color-stamp)] uppercase">
+            <p className="mb-1 font-mono text-[0.68rem] tracking-[0.22em] text-vermilion-hi uppercase">
               {stamp}
             </p>
           ) : null}
-          <Heading level={2}>{title}</Heading>
+          <Heading level={2} className="!text-paper-hi font-display">
+            {title}
+          </Heading>
         </div>
         {action}
       </div>
@@ -40,10 +42,8 @@ export function SearchResultGroup({
       {hasChildren ? (
         children
       ) : (
-        <div className="rounded-[var(--radius-paper)] border border-dashed border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-8 text-center">
-          <Text className="text-sm text-[var(--color-ink-muted)]">
-            {emptyMessage}
-          </Text>
+        <div className="border-2 border-dashed border-paper/25 bg-ink-2/40 px-4 py-8 text-center">
+          <Text className="!text-paper/70 text-sm">{emptyMessage}</Text>
         </div>
       )}
     </section>

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Heading } from "@/components/foundation/Heading";
 import { Text } from "@/components/foundation/Text";
-import { ItemCard } from "@/components/item/ItemCard";
+import { DarkZineItemCard } from "@/components/search/DarkZineItemCard";
 import { Header } from "@/components/navigation/Header";
 import { ItemSearchSortSelect } from "@/components/search/ItemSearchSortSelect";
 import { SearchInput } from "@/components/search/SearchInput";
@@ -130,19 +130,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="fmn-landing min-h-screen">
       <Header email={user.email} />
 
       <main className="mx-auto max-w-6xl space-y-10 px-4 py-8 md:px-6 md:py-10">
         <section className="max-w-2xl space-y-4">
           <div>
-            <p className="mb-2 font-stamp text-[11px] tracking-[0.24em] text-[var(--color-stamp)] uppercase">
+            <p className="mb-2 font-mono text-[0.68rem] tracking-[0.24em] text-vermilion-hi uppercase">
               Search
             </p>
-            <Heading level={1} className="mb-3">
+            <Heading level={1} className="!text-paper-hi mb-3 font-display">
               搜索
             </Heading>
-            <Text className="text-[var(--color-ink-muted)]">
+            <Text className="!text-paper/75">
               发现其他旅行者公开的旅行与购物记录。
             </Text>
           </div>
@@ -150,9 +150,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         </section>
 
         {errorMessage ? (
-          <div className="rounded-[var(--radius-paper)] border border-[var(--color-line)] bg-[var(--color-paper)] px-5 py-6">
-            <p className="font-semibold text-[var(--color-ink)]">加载失败</p>
-            <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
+          <div className="border-2 border-dashed border-paper/25 bg-ink-2/60 px-5 py-6">
+            <p className="font-display font-semibold text-paper-hi">加载失败</p>
+            <p className="mt-1 font-mono text-sm text-paper/70">
               {errorMessage}
             </p>
           </div>
@@ -196,7 +196,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                       {withPublisher(
                         item.userId,
                         publisherNames,
-                        <ItemCard
+                        <DarkZineItemCard
                           item={toItemCardModel(item)}
                           navFrom="search"
                           recommendationCounts={item.recommendationCounts}
@@ -213,13 +213,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         {!errorMessage && query ? (
           <div className="space-y-10">
             <div>
-              <p className="mb-1 font-stamp text-[11px] tracking-[0.22em] text-[var(--color-stamp)] uppercase">
+              <p className="mb-1 font-mono text-[0.68rem] tracking-[0.22em] text-vermilion-hi uppercase">
                 Results
               </p>
-              <Heading level={2}>搜索结果</Heading>
-              <Text className="mt-1 text-sm text-[var(--color-ink-muted)]">
-                「{query}」
-              </Text>
+              <Heading level={2} className="!text-paper-hi font-display">
+                搜索结果
+              </Heading>
+              <Text className="!text-paper/75 mt-1 text-sm">「{query}」</Text>
             </div>
 
             <SearchResultGroup
